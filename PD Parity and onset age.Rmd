@@ -27,7 +27,7 @@ affiliation:
     institution   : "Department of Neurology, Christchurch Hospital, Christchurch, New Zealand"
 
 csl: format/sage-vancouver.csl
-bibliography: format/ZoteroSync.bib
+bibliography: format/selected_refs.bib
 abstract: |
   **Background:** Uncontrolled studies have reported an association between later Parkinson's onset in women and a history of giving birth, with age of onset delayed by nearly three years per child.
   
@@ -112,7 +112,7 @@ USE_CACHED_PPMI_DATA = TRUE
 # reading previously-fit models saved to disk. These models
 # are not necessarily platform-agnostic, so they may need to regenerated 
 # the first time this script is run on a new computer:
-RECALCULATE_MODELS = TRUE
+RECALCULATE_MODELS = FALSE
 ###########################################################################
 ```
 
@@ -511,7 +511,8 @@ if (RECALCULATE_MODELS) {
     
     # for assessing sex group differences in mean onset age,
     model = brm(data = dat %>% filter(study == study_name), 
-                diagnosis_age ~ sex, save_all_pars = TRUE)
+                diagnosis_age ~ sex, save_all_pars = TRUE,
+                iter = 4000)
     saveRDS(model, paste0('models/brm_', study_name, '_dxage', '_sex.rds'))
     
     # for looking at relationship with n_children within each sex:
@@ -520,14 +521,16 @@ if (RECALCULATE_MODELS) {
       # first need an intercept-only model for each sex:
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
-                  diagnosis_age ~ 1, save_all_pars = TRUE)
+                  diagnosis_age ~ 1, save_all_pars = TRUE,
+                  iter = 4000)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
       
       # then compare that to a model as a function of n_children:
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
-                  diagnosis_age ~ n_children, save_all_pars = TRUE)
+                  diagnosis_age ~ n_children, save_all_pars = TRUE,
+                  iter = 4000)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_n.rds'))
       
@@ -535,14 +538,16 @@ if (RECALCULATE_MODELS) {
       # first need an intercept-only model for each sex:
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
-                  birth_year ~ 1, save_all_pars = TRUE)
+                  birth_year ~ 1, save_all_pars = TRUE,
+                  iter = 4000)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
       
       # then compare that to a model as a function of n_children:
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
-                  birth_year ~ n_children, save_all_pars = TRUE)
+                  birth_year ~ n_children, save_all_pars = TRUE,
+                  iter = 4000)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
     }
@@ -829,9 +834,12 @@ A challenge in such observational studies can be applying valid control groups. 
 
 
 ## Analyses
-Data were fit with simple Bayesian linear models, using the _brms_ package[@burkner2017_BrmsPackageBayesian] in the R statistical environment[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical]. Parameters were given default improper flat priors. Disease onset was defined as the age at which a formal diagnosis of Parkinson's was made.
+Data were fit with simple Bayesian linear models, using the _brms_ package[@burkner2017_BrmsPackageBayesian] in the R statistical environment[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical]. Parameters were given default weakly informative priors. Four chains of 4000 iterations each were run.
 
-When testing hypotheses that there was an association between the number of children and age (of diagnosis or birth), in each case we compared a model containing the number of children as a predictor to an intercept-only model (i.e. a model of no association, which simply estimated the mean age). Bayes factors indicated how much more likely it was that incorporating the number of children as a predictor provided a better fit to the data than an intercept-only model.
+Disease onset was defined as the age at which a formal diagnosis of Parkinson's was made. When testing hypotheses that there was an association between the number of children and age (of onset or birth), in each case we compared a model containing the number of children as a predictor to an intercept-only model (i.e. a model of no association, which simply estimated the mean age). Bayes factors indicated how much more likely it was that incorporating the number of children as a predictor provided a better fit to the data than an intercept-only model.
+
+## Reproducibility
+The code and the anonymised dataset extracts used to carry out the analyses and generate this manuscript are publicly available for inspection and comment at https://github.com/nzbri/pd-parity.
 
 ```{r demog-table}
 dat %>% 
@@ -880,7 +888,7 @@ dat %>%
 
 ## PPMI sample
 
-We first attempted to replicate the association between number of children and later disease onset in women in the PPMI sample. The linearly-modelled delay in diagnosis associated with children was `r ndigits(PPMI_Women_n_coefs['n_children','Estimate'])` years per child (credible interval [`r ndigits(PPMI_Women_n_coefs['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs['n_children','Q97.5'])`]). That estimate is the slope of the line in the upper-right panel of Figure \@ref(fig:main-figure)B, with a Bayes factor of `r ndigits(BF_PPMI_Women$bf)` indicating substantial evidence for an association. Similar results were, however, found for the men in this study, with a slope of `r ndigits(PPMI_Men_n_coefs['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs['n_children','Q2.5'])`, `r ndigits(PPMI_Men_n_coefs['n_children','Q97.5'])`] (see the upper-left panel of Figure \@ref(fig:main-figure)B). A Bayes factor of `r ndigits(BF_PPMI_Men$bf)` provided even stronger evidence for the association. That is, as the relationship between number of children and later disease onset was not unique to women, this strongly argues against the underlying cause being additional exposure to œstrogens.
+We first attempted to replicate the association between number of children and later disease onset in women in the PPMI sample. The linearly-modelled delay in diagnosis associated with children was `r ndigits(PPMI_Women_n_coefs['n_children','Estimate'])` years per child (uncertainty interval [`r ndigits(PPMI_Women_n_coefs['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs['n_children','Q97.5'])`]). That estimate is the slope of the line in the upper-right panel of Figure \@ref(fig:main-figure)B, with a Bayes factor of `r ndigits(BF_PPMI_Women$bf)` indicating substantial evidence for an association. Similar results were, however, found for the men in this study, with a slope of `r ndigits(PPMI_Men_n_coefs['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs['n_children','Q2.5'])`, `r ndigits(PPMI_Men_n_coefs['n_children','Q97.5'])`] (see the upper-left panel of Figure \@ref(fig:main-figure)B). A Bayes factor of `r ndigits(BF_PPMI_Men$bf)` provided even stronger evidence for the association. That is, as the relationship between number of children and later disease onset was not unique to women, this strongly argues against the underlying cause being additional exposure to œstrogens.
 
 We also tested whether women actually had a later age of disease onset. As indicated in Table \@ref(tab:demog-table), the mean age at diagnosis was actually slightly _earlier_ for women, by `r ndigits(PPMI_sex_coefs['sexWomen','Estimate'])` [`r ndigits(PPMI_sex_coefs['sexWomen','Q2.5'])`, `r ndigits(PPMI_sex_coefs['sexWomen','Q97.5'])`] years, with the posterior distribution implying a probability of only `r ndigits(p_ppmi_women_later_onset, 2)` of a later onset in the population.
 
@@ -892,7 +900,7 @@ The mean age at diagnosis was marginally earlier for women in this sample, by `r
 
 ## Testing a non-biological alternative explanation
 
-Due to societal changes in many countries, older people are more likely to have had larger families than would people born more recently. Figure \@ref(fig:main-figure)A shows there was indeed such a relationship, for the men and women in both studies (for ease of comparison with the age-of-onset effect, we plot number of children on the _x_-axis, although this does not reflect the direction of causality). We then modelled how many years earlier we would expect a patient to have been born, given how many children they had. _PPMI study._ Women: `r ndigits(PPMI_Women_n_coefs_birth['n_children','Estimate'])` years per child, credible interval [`r ndigits(PPMI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Women_birth$bf)`. Men: `r ndigits(PPMI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Men_birth$bf)`. _NZBRI study._ Women: `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Estimate'])` years per child, [`r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Women_birth$bf)`. Men: `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Men_birth$bf)`. (The coefficients are negative, as we are modelling year of birth, rather than age.)
+Due to societal changes in many countries, older people are more likely to have had larger families than would people born more recently. Figure \@ref(fig:main-figure)A shows there was indeed such a relationship, for the men and women in both studies (for ease of comparison with the age-of-onset effect, we plot number of children on the _x_-axis, although this does not reflect the direction of causality). We then modelled how many years earlier we would expect a patient to have been born, given how many children they had. _PPMI study._ Women: `r ndigits(PPMI_Women_n_coefs_birth['n_children','Estimate'])` years per child, uncertainty interval [`r ndigits(PPMI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Women_birth$bf)`. Men: `r ndigits(PPMI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Men_birth$bf)`. _NZBRI study._ Women: `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Estimate'])` years per child, [`r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Women_birth$bf)`. Men: `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Men_birth$bf)`. (The coefficients are negative, as we are modelling year of birth, rather than age.)
 
 ```{r diagnosis-age-graph, fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
 # main analysis: age at diagnosis as a function of number of
@@ -976,7 +984,7 @@ ggsave(plot = birthyear_panel, 'figures/n children by year of birth.pdf',
 
 ```
 
-```{r main-figure, fig.width = 17/2.54, fig.height = 9.7/2.54, fig.cap='(A). In both the PPMI and NZBRI studies, in both women and men, there was a background cohort effect in which older patients tended to have had more children than patients born more recently. The magnitude of this effect (the slope of the lines) was approximately each additional child being associated with patients having been born one year earlier. (B). The PPMI is an incident study and hence patient age and age-of-disease-onset are tightly correlated. Accordingly, the PPMI age-of-onset association almost perfectly reflects the underlying background societal association of older people having more children (at a similar magnitude of approximately one year per child). The NZBRI survey, however, was of a prevalent sample. The relationship between current age and age of onset therefore becomes de-coupled. Accordingly, the age-of-onset association was absent for both men and women in this sample.', dev='png', dev.args=list(type='cairo')}
+```{r main-figure, fig.width = 17/2.54, fig.height = 9.7/2.54, fig.cap='(A). In both the PPMI and NZBRI studies, in both women and men, there was a background cohort effect in which older patients tended to have had more children than patients born more recently. The magnitude of this effect (i.e. the slope of each line) was each additional child being associated with patients having been born (approximately) one year earlier. (B). The PPMI is an incident study and hence patient age and age-of-disease-onset are tightly correlated. Accordingly, the PPMI age-of-onset association almost perfectly reflects the underlying background societal association of older people having more children (at a similar magnitude of approximately one year per child). The NZBRI survey, however, was of a prevalent sample. The relationship between current age and age of onset therefore becomes de-coupled. Accordingly, the age-of-onset association was absent for both men and women in this sample.', dev='png', dev.args=list(type='cairo')}
 
 figure_1 = cowplot::plot_grid(birthyear_panel, diagnosis_panel, 
                               align = 'v',
@@ -1013,9 +1021,9 @@ dat_ppmi %>%
 
 The association between having more children and later disease onset in the men of the PPMI sample is sufficient to discount a hormonal cause for the relationship (and reinforces the need to examine relevant control comparisons whenever possible). We tested a non-biological explanation, in common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In an incident study like PPMI, patients' ages, and their ages of disease onset, are almost perfectly correlated. Hence the diagnosis-age effect in the PPMI study (top row of Figure \@ref(fig:main-figure)B) almost perfectly resembles the simple background generational cohort effect (top row of Figure \@ref(fig:main-figure)A). The reported associations are therefore a classic example of the epidemiological flaw of mistaking an age effect for a cohort one.[@blanchard1977_DistinguishingAgingPeriod]
 
-The association between number of children and diagnosis age was not found in either sex in the NZBRI study (bottom row of Figure \@ref(fig:main-figure)B), although the background age effect (bottom row of Figure \@ref(fig:main-figure)A) was similar to that seen in the PPMI study. This makes sense, because in a prevalence sample, the relationship between patient age and their age of onset becomes decoupled, as the sample includes many people with longstanding disease. Take, for example, a pair of people, one with an age of onset at 50 and another of onset at 75. In an incident study, participants are recruited soon after diagnosis, and therefore this pair come from different generations: one would have been born approximately 25 years before the other. In a prevalent sample, however, that tight relationship breaks down. Both patients could even be the same age: one could have been recently diagnosed at age 75, while the other, also aged 75, would have a 25 year history of disease. We therefore predict that artefactual associations between number of children and the age of Parkinson's onset are most likely to be observed in samples that have a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (in each case, roughly one year per child in the PPMI sample). 
+The association between number of children and diagnosis age was not found in either sex in the NZBRI study (bottom row of Figure \@ref(fig:main-figure)B), although the background age effect (bottom row of Figure \@ref(fig:main-figure)A) was similar to that seen in the PPMI study. This makes sense, because in a prevalence sample, the relationship between patient age and their age of onset becomes de-coupled, as the sample includes many people with longstanding disease. Take, for example, a pair of people, one with an age of onset at 50 and another of onset at 75. In an incident study, participants are recruited soon after diagnosis, and therefore this pair come from different generations: one would have been born approximately 25 years before the other. In a prevalent sample, however, that tight relationship breaks down. Both patients could even be the same age: one could have been recently diagnosed at age 75, while the other, also aged 75, would have a 25 year history of disease. We therefore predict that artefactual associations between number of children and the age of Parkinson's onset are most likely to be observed in samples that have a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (in each case, roughly one year per child in the PPMI sample). 
 
-Lastly, we found that women's age of onset was marginally _earlier_ compared to men. This is not inconsistent with the two previous reports: in the Frentzel _et al._ sample[@frentzel2017_IncreaseReproductiveLife], the women's age of onset (57.1) was similar to the men's (57.3), while Haaxma _et al._[@haaxma2007_GenderDifferencesParkinson] found it to be non-significantly later (53.4 vs 51.3, p = 0.06). At a national population level, further analysis of our previously reported drug-tracing epidemiological study[@pitcher2018_ParkinsonDiseaseEthnicities;@myall2017_ParkinsonOldestOld] of 10 500 [10 300,10 700] incident cases of Parkinson's found that age of onset for women was again, if anything, slightly earlier for women (69.8 [69.6, 70.0]) compared to men (70.5 [70.5,70.6]). That is, even if the association between childbirth and later onset was not artefactual, there may not be a sex difference that it is required to explain. 
+Lastly, we found that women's age of onset was marginally _earlier_ compared to men. This is not inconsistent with the two previous reports: in the Frentzel _et al._ sample[@frentzel2017_IncreaseReproductiveLife], the women's age of onset (57.1) was similar to the men's (57.3), while Haaxma _et al._[@haaxma2007_GenderDifferencesParkinson] found it to be non-significantly later (53.4 vs 51.3, p = 0.06). At a national population level, further analysis of our previously reported drug-tracing epidemiological study[@pitcher2018_ParkinsonDiseaseEthnicities;@myall2017_ParkinsonOldestOld] of 10 500 [10 300,10 700] incident cases of Parkinson's found that the standardised age of onset for women was again, if anything, slightly earlier for women (69.8 [69.6, 70.0]) compared to men (70.5 [70.5,70.6]). That is, even if the association between childbirth and later onset was not artefactual, there might not be a sex difference that it could be required to explain. 
 
 # Acknowledgments
 Some of the data used in the preparation of this article were obtained from the Parkinson's Progression Markers Initiative (PPMI) database (www.ppmi-info.org/data). For up-to-date information on the study, visit www.ppmi-info.org. PPMI – a public-private partnership – is funded by the Michael J. Fox Foundation for Parkinson's Research and funding partners, listed at www.ppmi-info.org/fundingpartners.
@@ -1023,29 +1031,7 @@ Some of the data used in the preparation of this article were obtained from the 
 # TODO
 - add uncertainty intervals on plots based on the models, as per the noisy prediction analysis (don't need to worry about any random effects, only fixed effects are involved).
 - "As per the PPMI Data Use and Biospecimen Use Agreements, investigators are reminded that they must submit all manuscripts and abstracts to the PPMI Data & Publications Committee (DPC) for administrative review prior to submission to a journal or conference. Review of submitted manuscripts and abstracts is guaranteed within one week of submission. To submit to the DPC, please upload the publication for review via the PPMI website."
-
-
-# Extra unused material
-- Both women and female animal models have been found to recover better than their male counterparts from acute neurological insults, such as stroke and traumatic brain injury [@brann2007_NeurotrophicNeuroprotectiveActions]. This has led to several decades of experimental studies of treatments with female sex hormones. Despite many promising pre-clinical results, however, multiple Phase III trials of progesterone in acute brain injury have been unsuccessful [@stein2015_EmbracingFailureWhat].
-
-- [@rugbjerg2013_ExposureEstrogenWomen] found no relationship between number of births and risk of PD from a registry study, but only 77 women had PD.
-Case control study including parity:[@popat2005_EffectReproductiveFactors]
-Study showing increased risk with increasing duration of pregnancies[@ragonese2004_RiskParkinsonDisease]
-Meta analysis of HRT showing no protective effect [@du2014_HormoneReplacementTherapy]
-Large prospective Nurses Health Study found no evidence that endogenous or exogenous œstrogens reduce the risk of Parkinson’s.[@simon2009_ReproductiveFactorsExogenous]
-
-- Support for the latter hypothesis has come from several directions, such as symptoms being found to be worse in women with lower circulating œstrogen levels, and the risk of Parkinson's being elevated after menopause or in the climacteric period beforehand, compared to other women of the same age [@villa2016_EstrogensNeuroinflammationNeurodegeneration]. The large prospective Nurses Health Study, however, found no evidence that endogenous or exogenous œstrogens reduce the risk of Parkinson's [@simon2009_ReproductiveFactorsExogenous].
-
-- [@ascherio2016_EpidemiologyParkinsonDisease] review. Risk is actually increased by use of post-menopausal HRT. Then conclude that "overall, there is no convincing evidence of associations between Parkinson’s disease risk and other reproductive factors, including age at menarche, use of oral contraceptives, pregnancy history, or type of menopause". Although note that at least one of these references _does_ show effects.
-
-- [@lv2017_ReproductiveFactorsRisk] meta analysis examined five case-control and three cohort studies to look at effect of parity and found the RR to be 0.99 (95% CI: 0.79–1.25) but is unclear what the exact comparison was (i.e birth vs no birth, or cumulative effect of number of births), and the outcome measure was RR of PD, not delayed onset per child. So e.g. the Haaxma paper [@haaxma2007_GenderDifferencesParkinson] is not actually included in that sub-analysis (it is cited for other things), and the Frentzel paper [@frentzel2017_IncreaseReproductiveLife] is not included as it came out later.
-
-- review the orginal papers for their mix of incident vs prevalent cases.
-  - Haaxma 2007 was of patients not on levodopa or dopamine agonists and all within 10 years of sx (mean for women was 2.5 years).
-  - Frentzel 2017 the mean sx duration was 5.8 years (5.0), closer to our study. Women's age of onset (57.1 (11.8) was similar to men (57.3 (11.1)).
-  - Neither showed a linear increase, so the PPMI incident study may be the purest in showing this artefact.
-- [@twelves2003_SystematicReviewIncidence] found slightly earlier onset for men in six of eight incidence studies, but this was an informal review of mean values rather than a quantitative meta-analysis that formally assessed uncertainty within and across studies.
-- [@taylor2007_HeterogeneityMaleFemale] meta-analysis of male to female risk found that the ratio of 1.5:1 except in Chinese and Japanese populations, saying this argued against "a fundamental protective effect of œstrogen, which would be expected to be present in all populations".
+- Submit figure to figshare.com and cite in caption.
 
 # References
 
