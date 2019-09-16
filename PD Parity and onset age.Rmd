@@ -1,0 +1,1052 @@
+---
+title: "The association between childbirth and later Parkinson's onset is a non-biological artefact of societal change."
+shorttitle: "Parkinson's and childbirth"
+
+author: 
+  - name          : "MacAskill, M. R."
+    affiliation   : "1,2"
+    corresponding : yes    # Define only one corresponding author
+    address       : "66 Stewart St, Christchurch 8011, New Zealand"
+    email         : "michael.macaskill@nzbri.org"
+  - name          : "Myall, D. J."
+    affiliation   : "1"
+  - name          : "Shoorangiz, R."
+    affiliation   : "1"
+  - name          : "Anderson, T. J."
+    affiliation   : "1,2,3,4"
+  - name          : "Pitcher, T. L."
+    affiliation   : "1,2,3"
+affiliation:
+  - id            : "1"
+    institution   : "New Zealand Brain Research Institute, 66 Stewart St, Christchurch, New Zealand"
+  - id            : "2"
+    institution   : "Department of Medicine, University of Otago, Christchurch; Christchurch, New Zealand"
+  - id            : "3"
+    institution   : "Brain Research New Zealand, Rangahau Roro Aotearoa"
+  - id            : "4"
+    institution   : "Department of Neurology, Christchurch Hospital, Christchurch, New Zealand"
+
+csl: format/sage-vancouver.csl
+bibliography: format/ZoteroSync.bib
+abstract: |
+  **Background:** Uncontrolled studies have reported an association between later Parkinson's onset in women and a history of giving birth, with age of onset delayed by nearly three years per child.
+  
+  **Objectives:** We tested this association in two independent datasets but also examined men with Parkinson's, as a control to test for non-biological explanations.
+  
+  **Methods:** We analysed the Parkinson's Progressive Markers Initiative incident sample (PPMI: 145 women, 276 men) and a prevalent sample surveyed by the New Zealand Brain Research Institute (NZBRI: 210 women, 394 men).
+  
+  **Results:** The association was present in both women and men in the PPMI study, and absent in both in the NZBRI study. This is consistent with generational differences, common to men and women, which confound with age of onset in incident-dominant samples.
+  
+  **Conclusion:** Despite being replicable in certain circumstances, the association between childbirth and later Parkinson's onset is an artefact of generational cohort differences.
+
+keywords          : "Parkinson disease, sex differences, pregnancy, epidemiology,  cohort effects, sex hormones"
+wordcount         : "1666 TODO final check"
+
+floatsintext      : no
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+linenumbers       : yes
+mask              : no
+draft             : no
+
+documentclass     : "apa6"
+classoption       : "man"
+output            : papaja::apa6_word
+---
+
+```{r setup, include=FALSE}
+library(papaja)
+
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE,
+	dpi = 600 # for reasonable dpi in Word document bitmap figures
+)
+
+# allow complex kableExtra features to render in Word:
+options(kableExtra.auto_format = FALSE)
+```
+
+```{r control}
+rstan::rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+
+###########################################################################
+# The Canterbury data requires matching survey responses to NZBRI-held info
+# on diagnosis age. This will eventually break, as it relies on an old 
+# internal processes to access data. So after the data sources were matched, 
+# we saved them to a cached .csv file on disk and use that thereafter.
+# This setting should be TRUE for people using the publicly-available
+# distribution, as only this tidied and anonymised data is included:
+USE_CACHED_CANTERBURY_DATA = TRUE
+###########################################################################
+
+###########################################################################
+# The NZ national data required a lot of tidying. For convenience, one can 
+# isntead import the processed file So after the data sources were matched, 
+# we saved them to a cached .csv file on disk and use that thereafter.
+# This setting should be TRUE for people using the publicly-available
+# distribution, as only this tidied and anonymised data is included:
+USE_CACHED_NATIONAL_DATA = TRUE
+###########################################################################
+
+###########################################################################
+# We don't circulate the full PMMI datasets, which should be obtained 
+# from the PPMI site directly. The following files are required if you want
+# to follow how they were processed and joined:
+# Patient_Status.csv
+# Screening___Demographics.csv
+# PD_Features.csv
+# Family_History__PD_.csv
+# 
+# Otherwise, we include here the minimal resulting joined dataset, containing 
+# just the crucial variables. This allows you to run this analysis without 
+# access to the full PPMI tables:
+USE_CACHED_PPMI_DATA = TRUE
+###########################################################################
+
+###########################################################################
+# fitting the models takes time, so set this variable to FALSE to allow 
+# reading previously-fit models saved to disk. These models
+# are not necessarily platform-agnostic, so they may need to regenerated 
+# the first time this script is run on a new computer:
+RECALCULATE_MODELS = TRUE
+###########################################################################
+```
+
+```{r import-packages, message=FALSE}
+# currently need to suppress messages in this block as the tidyverse import 
+# produces tick marks that throw off the latex rendering:
+suppressMessages(library(tidyverse))
+library(magrittr)   # for %<>%
+library(knitr)      # for kable() function to format tables
+library(kableExtra) # additional table formatting options
+library(lubridate)  # manipulate dates
+library(janitor)    # clean column names
+library(brms)       # bayesian modelling
+library(cowplot)    # construct multi-panel figures
+
+if (!USE_CACHED_CANTERBURY_DATA) {
+  library(chchpd)   # NZBRI package to access study data
+  chchpd::google_authenticate()
+}
+```
+
+
+```{r define-variables}
+# specify manual colour scheme:
+two_colours = c('#D55E00', '#0072B2')
+
+ndigits <- function(number, digits = 1){
+  return(format(round(number, digits = digits), nsmall = digits))
+}
+
+```
+
+```{r import-nz-canterbury-data}
+if (USE_CACHED_CANTERBURY_DATA) {
+  
+  # read from the previously merged and stored data set:
+  dat_canty = read_csv('data/anonymised/nz_canterbury_data.csv')
+  
+} else # merge various data sources
+{
+  # data collected by Toni Pitcher via an online survey of NZBRI participants 
+  # in 2014-15 and with new cases from 2018 appended:
+  exposure_file = 'data/source/NZBRI/Environmental Exposures Relevant to PD_FINAL.csv'
+  
+  exposures = read_csv(exposure_file) %>% 
+    janitor::clean_names() %>% 
+    rename(survey_id = id_number_supplied_by_the_nzbri) %>% 
+    # extract the date to be able to work out age at time of survey:
+    mutate(survey_date = ymd(str_sub(timestamp, start = 1, end = 10))) %>% 
+    # remove test ID values, which were non-numeric:
+    mutate(survey_id = as.integer(survey_id)) %>% 
+    filter(!is.na(survey_id)) %>% 
+    # repair some erroneously-entered survey ids:
+    mutate(survey_id = 
+             case_when(survey_id == 2577 ~ 25577L,
+                       survey_id == 3478 ~ 34827L,
+                       survey_id == 8029 ~ 18029L,
+                       survey_id == 23761 ~ 23764L,
+                       survey_id == 30863 ~ 30683L,
+                       survey_id == 7293 ~ 72937L,
+                       TRUE ~ survey_id)) %>% 
+    rename(how_many = how_many_children_do_you_have) %>% 
+    mutate(how_many = str_to_lower(how_many)) %>% 
+    mutate(n_children = 
+             case_when(do_you_have_any_children == 'No' ~ 0,
+                       how_many == '??' ~ NA_real_,
+                       how_many %in% c('2 adopted', '2 boys who are adopted') ~ 0,
+                       how_many %in% c('one', 'one {blood}') ~ 1,
+                       how_many %in% c('2!', 'two', '2 children') ~ 2,
+                       how_many == 'three' ~ 3,
+                       how_many %in% c('four', '4 children', '4sons') ~ 4,
+                       how_many == 'nine' ~ 9,
+                       TRUE ~ as.numeric(how_many))) %>% 
+    filter(!is.na(n_children)) %>% 
+    # restrict to relevant variables:
+    select(survey_id, survey_date, n_children)
+  
+  participants = chchpd::import_participants(identifiers = TRUE) %>% # as need DOB
+    mutate(birth_year = year(birth_date)) %>% 
+    select(subject_id, survey_id, participant_group, symptom_onset_age,
+           diagnosis_age, birth_year, birth_date, sex)
+  
+  # join the exposure data to the participant data:
+  dat_canty = exposures %>%
+    left_join(participants, by = 'survey_id') %>% 
+    mutate(age = round(interval(birth_date, survey_date) / years(1), digits = 1),
+           duration_dx = round(age - diagnosis_age, digits = 1),
+           duration_sx = round(age - symptom_onset_age, digits = 1))
+  
+  # identify those that didn't match (likely due to subject making
+  # a manual data entry error of their subject id:)
+  unmatched_survey = dat_canty %>% 
+    filter(is.na(subject_id)) %>% 
+    select(survey_id) %>%
+    rename(unmatched_survey_id = survey_id)
+  kable(unmatched_survey)
+  
+  # drop controls and one PSP case:
+  dat_canty %<>% 
+    filter(participant_group == 'PD') %>% 
+    mutate(sex = factor(sex, levels = c('Female', 'Male'), 
+                        labels = c('Women', 'Men')))
+  
+  # identify those that don't have a diagnosis age recorded in Alice:
+  missing_diagnosis_age = dat_canty %>% 
+    filter(is.na(diagnosis_age)) %>% 
+    select(subject_id) %>%
+    rename(missing_diagnosis_age = subject_id)
+  kable(missing_diagnosis_age)
+  
+  # tidy up for mating to PPMI data:
+  dat_canty %<>%
+    filter(!is.na(diagnosis_age)) %>%
+    mutate(study = 'NZBRI',
+           substudy = 'Canterbury') %>%
+    select(study, substudy, sex, n_children, symptom_onset_age, 
+           diagnosis_age, birth_year, age, duration_dx, duration_sx) %>% 
+    arrange(study, sex, n_children, diagnosis_age)
+  
+  # save merged data to a cached file:
+  dat_canty %>% write_csv('data/anonymised/nz_canterbury_data.csv')
+  
+}
+
+```
+
+```{r import-nz-national-data}
+
+if (USE_CACHED_NATIONAL_DATA) {
+  
+  # read from the previously merged and stored data set:
+  dat_national = read_csv('data/anonymised/nz_national_data.csv')
+  
+} else # tidy and process the raw survey responses
+{
+  # data collected by Toni Pitcher via a national online survey of Parkinson's 
+  # NZ members, excluding people in Canterbury:
+  national_file = 'data/source/NZBRI/Diagnosis, treatment and risk factors associated with Parkinson’s and related disorders in New Zealand..csv'
+  # this dataset doesn't need to be joined to anything else, as it contains info
+  # on both number of children as well as age of onset.
+  
+  dat_national = read_csv(national_file) %>% 
+    janitor::clean_names() %>% 
+    # filter out people who didn't consent:
+    filter(i_understand_that_completing_this_survey_is_voluntary_and_my_ongoing_clinical_care_will_not_be_influenced_by_my_decision_about_this_survey == "Yes, I'm happy to complete the survey") %>% 
+    # include only IPD:
+    filter(what_disorder_have_you_been_diagnosed_with %in% c("Parkinson's disease", "Parkinson’s disease with dementia")) %>% 
+    # extract the date to be able to work out age at time of survey:
+    mutate(survey_date = ymd(str_sub(timestamp, start = 1, end = 10)),
+           survey_year = year(survey_date)) %>% 
+    rename(diagnosis_age = how_old_were_you_when_you_received_your_neurological_diagnosis,
+           pre_diagnosis_years = how_long_were_you_aware_of_symptoms_of_your_neurological_condition_before_you_sought_a_medical_opinion,
+           sex = what_sex_are_you,
+           age = what_is_your_current_age,
+           have_children = do_you_have_any_offspring_children,
+           how_many = how_many_children_do_you_have,
+           have_adopted = are_any_of_these_children_adopted_or_fostered_i_e_not_your_biological_child,
+           how_many_adopted = how_many_of_your_children_are_not_your_biological_child) %>%
+    select(survey_date,
+           survey_year,
+           diagnosis_age,
+           pre_diagnosis_years,
+           sex,
+           age,
+           have_children,
+           how_many,
+           have_adopted,
+           how_many_adopted)
+  
+  # clean up the national data:
+  dat_national %<>% 
+    filter(!is.na(sex),
+           sex != 'MTF') %>% 
+    mutate(sex = factor(sex, levels = c('Female', 'Male'), 
+                        labels = c('Women', 'Men'))) %>% 
+    mutate_at(c('diagnosis_age', 'age', 'how_many'), str_to_lower) %>% 
+    mutate_at(c('diagnosis_age', 'age', 'how_many'), str_remove_all, ' ') %>% 
+    mutate(diagnosis_age = 
+             str_remove(diagnosis_age, 
+                        regex(str_c(c('yearsold', 'yrsold', '\\.5yearsold', '\\.5years',
+                                      'years5months', 'yearsithink', 'yrslthink',
+                                      'years', 'yrs', 'yr', 
+                                      'about', '\\?', 'approx'), collapse = '|')))) %>% 
+    mutate(diagnosis_age = case_when(diagnosis_age == 'sixty' ~ '60',
+                                     diagnosis_age == '61andsxmonths' ~ '61',
+                                     diagnosis_age == 'sixtyfive' ~ '65',
+                                     diagnosis_age == 'age69.' ~ '69',
+                                     diagnosis_age == 'seventy' ~ '70',
+                                     diagnosis_age == 'seventyone' ~ '71',
+                                     diagnosis_age == 'seventytwo' ~ '72',
+                                     diagnosis_age == 'seventyfive' ~ '75',
+                                     diagnosis_age == '8o' ~ '80',
+                                     diagnosis_age == '5ago' ~ '-5',
+                                     diagnosis_age == '2004' ~ '-15',
+                                     diagnosis_age == '2006' ~ '-13',
+                                     diagnosis_age == '2008' ~ '-11',
+                                     diagnosis_age == '2016' ~ '-3',
+                                     diagnosis_age == '7' ~ NA_character_,
+                                     diagnosis_age == '11' ~ NA_character_,
+                                     diagnosis_age == '77or78' ~ NA_character_,
+                                     diagnosis_age == 'early40s' ~ NA_character_,
+                                     diagnosis_age == 'didnothaveneurologicaldiagnosis' ~ NA_character_,
+                                     diagnosis_age == 'alotdisapointed' ~ NA_character_,
+                                     str_detect(diagnosis_age, 'dadwasalreadyaware') ~ NA_character_,
+                                     TRUE ~ diagnosis_age)) %>% 
+    filter(!is.na(diagnosis_age)) %>% 
+    mutate(age = 
+             str_remove(age, 
+                        regex(str_c(c('yearsand11months', 'years6months', 'yrs6mths', 'yrs9mths', 'yearsold',
+                                      'years', 'yrs', 'yr', 'y8m',
+                                      '\\.6years','\\.5', 'tezs'), 
+                                    collapse = '|')))) %>% 
+    mutate(age = case_when(age == 'sixtyseventenmonths' ~ '67',
+                           age == 'seventy-one' ~ '71',
+                           age == 'eighty' ~ '80',
+                           age == '668' ~ NA_character_,
+                           age == '791' ~ NA_character_,
+                           TRUE ~ age)) %>% 
+    filter(!is.na(age))
+  
+  dat_national %<>% 
+    # careful, this will wipe out any remaining that can't be parsed into numeric form:
+    mutate_at(c('diagnosis_age', 'age'), as.numeric) %>% 
+    filter(!is.na(diagnosis_age), !is.na(age)) %>% 
+    # turn relative diagnosis years into absolute ages:
+    mutate(diagnosis_age = case_when(diagnosis_age < 0  ~ diagnosis_age + age,
+                                     TRUE ~ diagnosis_age))
+  
+  dat_national %<>%
+    mutate(how_many = case_when(how_many == 'one'  ~ '1',
+                                how_many == 'one.'  ~ '1',
+                                how_many == '1adoptedson'  ~ '1',
+                                how_many == '1alive,1deceased'  ~ '2',
+                                how_many == 'two'  ~ '2',
+                                how_many == 'twp'  ~ '2',
+                                how_many == 'two-twins'  ~ '2',
+                                how_many == '2adultdaughters'  ~ '2',
+                                how_many == 'yesido.sonanddaugther'  ~ '2',
+                                how_many == 'three'  ~ '3',
+                                how_many == '3adults'  ~ '3',
+                                how_many == '3birthsbut2livingsons'  ~ '3',
+                                how_many == '3theyareadultsnow'  ~ '3',
+                                how_many == 'four'  ~ '4',
+                                how_many == '4sons'  ~ '4',
+                                how_many == '4butonly2stillliving'  ~ '4',
+                                how_many == 'five'  ~ '5',
+                                # obfuscate some identifying values by not 
+                                # stating entire search term:
+                                str_detect(how_many, 'twonow,daughterpassedaway') ~ '3',
+                                str_detect(how_many, '3onlytwolivingeldestdied') ~ '3',
+                                TRUE ~ how_many)) %>% 
+    # now wipe out any remaining that can't be parsed into numeric form:
+    mutate(how_many = as.numeric(how_many)) %>% 
+    # some stated they had children yet had NA for the number:
+    filter(!(is.na(how_many) & have_children == 'Yes')) %>% 
+    mutate(how_many = replace_na(how_many, 0),
+           how_many_adopted = replace_na(how_many_adopted, 0)) %>% 
+    mutate(n_children = how_many - how_many_adopted) %>% 
+    # calculate various temporal variables:
+    mutate(birth_year = survey_year - age,
+           duration_dx = age - diagnosis_age) %>% 
+    filter(duration_dx >= 0) %>% # one case was diagnosed at 83 but is age 68?
+    # tidy up for mating to PPMI data:
+    mutate(study = 'NZBRI',
+           substudy = 'National') %>%
+    select(study, substudy, sex, n_children, diagnosis_age, birth_year, age, 
+           duration_dx) %>% 
+    arrange(study, sex, n_children, diagnosis_age)
+
+  
+  # save processed data to a cached file:
+  dat_national %>% write_csv('data/anonymised/nz_national_data.csv')
+  
+}
+
+
+```
+
+```{r import-ppmi-data}
+# PPMI dates are often anonymised to be strings of the form 'MM/YYYY'. To do 
+# calculations on these values requires that they become real date objects. We 
+# coerce the values as.character in case they have been imported as a factor, 
+# and set an arbitrary day of 15.
+MMYYYYtoDate <- function(MMYYYY){
+	return(
+		dmy(paste('15/', as.character(MMYYYY),
+							sep=''))
+	)
+}
+
+# Similarly, DOBs are given as bare years, so we convert to a full year date 
+# as at June 30:
+YYYYtoDate <- function(YYYY){
+	return(
+		dmy(paste('30/6/', as.character(YYYY),
+							sep=''))
+	)
+}
+
+if (USE_CACHED_PPMI_DATA) {
+  
+  # read from the previously merged and stored data set:
+  dat_ppmi = read_csv('data/anonymised/ppmi_data.csv')
+  
+} else # merge various data sources
+{
+  # READ IN THE PARTICIPANT GROUP ASSIGNMENT:
+  groups = read.csv('data/source/PPMI/Patient_Status.csv', 
+                    stringsAsFactors = FALSE) %>% 
+    select(PATNO, ENROLL_CAT, ENROLL_STATUS, ENROLL_DATE) %>% 
+    filter(ENROLL_STATUS=='Enrolled' | ENROLL_STATUS=='Withdrew') %>% 
+    filter(ENROLL_CAT != '') %>% 
+    mutate(ENROLL_DATE = MMYYYYtoDate(ENROLL_DATE)) %>% 
+    # exclude control, SWEDD, prodromal, genetics etc groups: 
+    filter(ENROLL_CAT == 'PD')
+  
+  # READ IN THE YEAR OF BIRTH:
+  YOBs = read.csv('data/source/PPMI/Screening___Demographics.csv', 
+                  stringsAsFactors = FALSE) %>% 
+    select(PATNO, BIRTHDT, GENDER) %>% # TODO some YOBs are missing NA
+    # convert from bare years to a full date format:
+    rename(birth_year = BIRTHDT) %>% 
+    mutate(BIRTHDT = YYYYtoDate(birth_year))
+  
+  # get the date of PD diagnosis:
+  # There is some double counting has been resolved:
+  PD_dx_date = read.csv('data/source/PPMI/PD_Features.csv', 
+                        stringsAsFactors = FALSE)  %>% 
+    select(PATNO, PDDXDT, SXMO, SXYEAR) %>% 
+    # construct a date for the symptom onset:
+    unite(col = SXDT, SXMO, SXYEAR, sep = '/') %>% 
+    # convert partial dates to true date format, adding a dummy day value:
+    mutate(PDDXDT = MMYYYYtoDate(PDDXDT),
+           SXDT = MMYYYYtoDate(SXDT)) %>% 
+    # sort out duplicates:
+    group_by(PATNO) %>% 
+    summarise(PDDXDT = first(PDDXDT),
+              SXDT = first(SXDT))
+  
+  FHx = read.csv('data/source/PPMI/Family_History__PD_.csv', 
+                 stringsAsFactors = FALSE)
+  
+  dat_ppmi = left_join(groups, YOBs, by = 'PATNO') %>% 
+    left_join(FHx %>% select(-EVENT_ID), by = 'PATNO') %>% 
+    left_join(PD_dx_date, by = 'PATNO')
+  
+  dat_ppmi %<>% mutate(
+    age = round(interval(BIRTHDT, ENROLL_DATE)/years(1), digits = 1),
+    diagnosis_age = round(interval(BIRTHDT, PDDXDT)/years(1), digits = 1),
+    symptom_onset_age = round(interval(BIRTHDT, SXDT)/years(1), digits = 1),
+    duration_dx = round(age - diagnosis_age, digits = 1),
+    duration_sx = round(age - symptom_onset_age, digits = 1),
+    sex = case_when(GENDER == 0 ~ 0,
+                    GENDER == 1 ~ 0,
+                    GENDER == 2 ~1), # recode all women to female, regardless of child-bearing potential
+    sex = factor(sex, labels = c('Women', 'Men'))) %>% 
+    filter(!is.na(KIDSNUM)) # two people have missing KIDSNUM values
+  
+  dat_ppmi %<>%
+    mutate(study = 'PPMI',
+           substudy = 'PPMI') %>% 
+    rename(n_children = KIDSNUM) %>% 
+    select(study, substudy, sex, n_children, symptom_onset_age, diagnosis_age, 
+           birth_year, age, duration_dx, duration_sx) %>% 
+    arrange(study, sex, n_children, diagnosis_age)
+  
+  # save merged data to a cached file:
+  dat_ppmi %>% write_csv('data/anonymised/ppmi_data.csv')
+  
+  ########
+  # NB there are minor issues with -ve lags between SX and DX ages for 
+  # 3 subjects.
+  ########
+}
+```
+
+```{r combine-data}
+# combine data:
+dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>% 
+  arrange(study, sex, n_children, diagnosis_age) %>% 
+  mutate(study = factor(study, levels = c('PPMI', 'NZBRI'))) %>% 
+  mutate(substudy = factor(substudy, levels = c('PPMI', 'Canterbury', 'National'))) %>%
+  group_by(study) %>% 
+  mutate(birth_year_std = birth_year - min(birth_year, na.rm = TRUE)) %>% 
+  ungroup()
+
+
+```
+
+```{r fit-or-load-models, echo=FALSE, message=FALSE, warning=FALSE}
+# decide whether to fit models from scratch, or save execution time by re-loading
+# models saved to disk previously.
+if (RECALCULATE_MODELS) { 
+  # fit the models from scratch and save them to disk:
+  for (study_name in c('PPMI', 'NZBRI')) {
+    
+    # for assessing sex group differences in mean onset age,
+    model = brm(data = dat %>% filter(study == study_name), 
+                diagnosis_age ~ sex, save_all_pars = TRUE)
+    saveRDS(model, paste0('models/brm_', study_name, '_dxage', '_sex.rds'))
+    
+    # for looking at relationship with n_children within each sex:
+    for (sex_level in c('Men', 'Women')) {
+      #### The diagnosis-age associations            ###
+      # first need an intercept-only model for each sex:
+      model = brm(data = dat %>% filter(study == study_name,
+                                        sex == sex_level), 
+                  diagnosis_age ~ 1, save_all_pars = TRUE)
+      saveRDS(model, 
+              paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
+      
+      # then compare that to a model as a function of n_children:
+      model = brm(data = dat %>% filter(study == study_name,
+                                        sex == sex_level), 
+                  diagnosis_age ~ n_children, save_all_pars = TRUE)
+      saveRDS(model, 
+              paste0('models/brm_', study_name, '_dxage_', sex_level, '_n.rds'))
+      
+      #### The birth-year cohort effects            ###
+      # first need an intercept-only model for each sex:
+      model = brm(data = dat %>% filter(study == study_name,
+                                        sex == sex_level), 
+                  birth_year ~ 1, save_all_pars = TRUE)
+      saveRDS(model, 
+              paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
+      
+      # then compare that to a model as a function of n_children:
+      model = brm(data = dat %>% filter(study == study_name,
+                                        sex == sex_level), 
+                  birth_year ~ n_children, save_all_pars = TRUE)
+      saveRDS(model, 
+              paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
+    }
+    
+    # these older models can hopefully be dropped. They were for an initial, 
+    # more complicated model-comparison approach:
+    
+    # # intercept only:
+    # model = brm(data = dat %>% filter(study == study_name), 
+    #             diagnosis_age ~ 1, save_all_pars = TRUE)
+    # saveRDS(model, paste0('models/brm_', study_name, '_int.rds'))
+    # 
+    # # use n children as predictor:
+    # model = brm(data = dat %>% filter(study == study_name), 
+    #             diagnosis_age ~ n_children, save_all_pars = TRUE)
+    # saveRDS(model, paste0('models/brm_', study_name, '_n.rds'))
+    # 
+    # # add sex as predictor:
+    # model = brm(data = dat %>% filter(study == study_name), 
+    #             diagnosis_age ~ n_children * sex, save_all_pars = TRUE)
+    # saveRDS(model, paste0('models/brm_', study_name, '_n_sex.rds'))
+    
+  }
+  }
+
+# regardless, now read in the previously-fitted models from disk.
+# construct the name of the model (e.g. 'brm_PPMI_dxage_int'):
+for (study_name in c('PPMI', 'NZBRI')) {
+  # first the dxage models:
+  for (model_vars in c('sex', 'Men_int', 'Women_int', 'Men_n', 'Women_n')) {
+    model_name = paste('brm', study_name, 'dxage', model_vars, sep = '_')
+    
+    # read its saved representation from disk:
+    model = readRDS(paste0('models/', model_name, '.rds'))
+    
+    # assign to a variable with the associated name:
+    assign(model_name, model)
+  }
+  
+  # then the birthyear ones
+   for (model_vars in c('Men_int', 'Men_n', 'Women_int', 'Women_n')) {
+    model_name = paste('brm', study_name, 'birthyear', model_vars, sep = '_')
+    
+    # read its saved representation from disk:
+    model = readRDS(paste0('models/', model_name, '.rds'))
+    
+    # assign to a variable with the associated name:
+    assign(model_name, model)
+  }
+  
+}
+
+remove(model) # tidy up orphaned reference
+
+```
+
+```{r extract-coefficients}
+
+# the diagnosis age model coefficients:
+PPMI_sex_coefs = fixef(brm_PPMI_dxage_sex)
+PPMI_Men_n_coefs = fixef(brm_PPMI_dxage_Men_n)
+PPMI_Women_n_coefs = fixef(brm_PPMI_dxage_Women_n)
+
+NZBRI_sex_coefs = fixef(brm_NZBRI_dxage_sex)
+NZBRI_Men_n_coefs = fixef(brm_NZBRI_dxage_Men_n)
+NZBRI_Women_n_coefs = fixef(brm_NZBRI_dxage_Women_n)
+
+# the relevant birth year effect model coefficients:
+PPMI_Men_n_coefs_birth = fixef(brm_PPMI_birthyear_Men_n)
+PPMI_Women_n_coefs_birth = fixef(brm_PPMI_birthyear_Women_n)
+
+NZBRI_Men_n_coefs_birth = fixef(brm_NZBRI_birthyear_Men_n)
+NZBRI_Women_n_coefs_birth = fixef(brm_NZBRI_birthyear_Women_n)
+
+# Older coefficients for more complicated models:
+# PPMI_int_coefs = fixef(brm_PPMI_int)
+# PPMI_intercept = PPMI_int_coefs[,'Estimate']
+# 
+# PPMI_sex_coefs = fixef(brm_PPMI_sex)
+# PPMI_men       = PPMI_sex_coefs['Intercept', 'Estimate']
+# PPMI_women     = PPMI_sex_coefs['sexWomen', 'Estimate']
+# 
+# PPMI_n_sex_coefs = fixef(brm_PPMI_n_sex)
+# PPMI_n_men       = PPMI_n_sex_coefs['Intercept', 'Estimate']
+# PPMI_n_women     = PPMI_n_sex_coefs['sexWomen', 'Estimate']
+# 
+# NZBRI_int_coefs = fixef(brm_NZBRI_int)
+# NZBRI_intercept = NZBRI_int_coefs[,'Estimate']
+# 
+# NZBRI_sex_coefs = fixef(brm_NZBRI_sex)
+# NZBRI_men       = NZBRI_sex_coefs['Intercept', 'Estimate']
+# NZBRI_women     = NZBRI_sex_coefs['sexWomen', 'Estimate']
+
+```
+
+```{r p-women-later-onset}
+
+# what is the probability that women actually have a later age of onset than men?
+# can answer this by testing the specific hypothesis that their onset age difference is actually
+# greater than zero:
+p_ppmi_women_later_onset  = brms::hypothesis(brm_PPMI_dxage_sex, 'sexWomen > 0')$hypothesis$Post.Prob
+p_nzbri_women_later_onset = brms::hypothesis(brm_NZBRI_dxage_sex, 'sexWomen > 0')$hypothesis$Post.Prob
+
+# a more verbose way of saying the same thing:
+#p_ppmi_women_later_onset = brms::hypothesis(brm_PPMI_sex, "Intercept + sexWomen > Intercept")$hypothesis$Post.Prob
+
+# we could also do this manually, by looking at the proportion of posterior samples where the coefficient 
+# was > 0:
+# p_ppmi_women_later_onset = posterior_samples(brm_PPMI_sex) %>% 
+#   mutate(above = b_sexWomen > 0) %>% 
+#   summarise(prop = sum(above)/n())
+ 
+```
+
+```{r bayes-factors, include=FALSE}
+
+# compare the diagnosis age slopes to the null model of no association:
+BF_PPMI_Men = bayes_factor(brm_PPMI_dxage_Men_n, brm_PPMI_dxage_Men_int)
+BF_PPMI_Women = bayes_factor(brm_PPMI_dxage_Women_n, brm_PPMI_dxage_Women_int)
+BF_NZBRI_Men = bayes_factor(brm_NZBRI_dxage_Men_n, brm_NZBRI_dxage_Men_int)
+BF_NZBRI_Women = bayes_factor(brm_NZBRI_dxage_Women_n, brm_NZBRI_dxage_Women_int)
+
+# do the same for the cohort birth year effects:
+BF_PPMI_Men_birth = bayes_factor(brm_PPMI_birthyear_Men_n, brm_PPMI_birthyear_Men_int)
+BF_PPMI_Women_birth = bayes_factor(brm_PPMI_birthyear_Women_n, brm_PPMI_birthyear_Women_int)
+BF_NZBRI_Men_birth = bayes_factor(brm_NZBRI_birthyear_Men_n, brm_NZBRI_birthyear_Men_int)
+BF_NZBRI_Women_birth = bayes_factor(brm_NZBRI_birthyear_Women_n, brm_NZBRI_birthyear_Women_int)
+
+```
+
+```{r DISCARD-compare-PPMI, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+
+summary(brm_PPMI_int)
+summary(brm_PPMI_sex)
+bayes_factor(brm_PPMI_sex, brm_PPMI_int)
+
+# compare:
+loo(brm_PPMI_int, brm_PPMI_sex)
+
+
+summary(brm_PPMI_n)
+
+a = posterior_samples(brm_PPMI_n)
+
+#qplot(a$b_n_children)
+
+
+#summary(brm_PPMI_n_sex)
+
+#marginal_effects(brm_PPMI_n_sex)
+
+loo(brm_PPMI_int, brm_PPMI_n)
+loo(brm_PPMI_int, brm_PPMI_n_sex)
+loo(brm_PPMI_n, brm_PPMI_n_sex)
+
+bf_PPMI_n = bayes_factor(brm_PPMI_n, brm_PPMI_int)
+bf_PPMI_n_sex = bayes_factor(brm_PPMI_n_sex, brm_PPMI_n)
+
+```
+
+```{r DISCARD-compare-NZBRI, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# Bayesian linear models
+
+# NZBRI intercept only:
+summary(brm_NZBRI_int)
+
+
+
+# group by sex:
+summary(brm_NZBRI_sex)
+
+bayes_factor(brm_NZBRI_int, brm_NZBRI_sex)
+
+posterior_samples(brm_NZBRI_sex) %>% 
+  mutate(above = b_sexWomen > 0) %>% 
+  summarise(prop = sum(above)/n())
+
+hypothesis(brm_NZBRI_sex, "Intercept + sexWomen > Intercept")
+
+# compare:
+loo(brm_NZBRI_int, brm_NZBRI_sex)
+
+# use n children as predictor:
+summary(brm_NZBRI_n)
+
+# add sex as predictor:
+summary(brm_NZBRI_n_sex)
+
+
+bf_NZBRI_n = bayes_factor(brm_NZBRI_n, brm_NZBRI_int)
+bf_NZBRI_n_sex = bayes_factor(brm_NZBRI_n_sex, brm_NZBRI_n)
+
+
+# Bayesian t-tests of age of onset differences 
+# ### NB need to upgrade to a "Welch's test" equivalent
+
+# t_nz_dx_age = brm(data = dat %>% filter(study =='NZBRI'), 
+#            diagnosis_age ~ sex)
+# 
+# summary(t_nz_dx_age)
+# 
+# t_nz_dx_age_welch = brm(data = dat %>% filter(study =='NZBRI'),
+#                         bf(diagnosis_age ~ sex, sigma ~ sex))
+# summary(t_nz_dx_age_welch)
+# 
+# hypothesis(t_nz_dx_age, "Intercept < Intercept + sexMen")
+# 
+# hypothesis(t_nz_dx_age, "sexMen = 0")
+# 
+# hypothesis(t_nz_dx_age, "Intercept = 0")
+# 
+# mean(posterior_samples(t_nz_dx_age, "^b") > 0)
+
+
+```
+
+```{r DISCARD-simple-models, eval=FALSE, include=FALSE}
+# NZBRI diagnosis or onset age ~ number of children:
+lm_nz = lm(data = dat %>% filter(study =='NZBRI'), 
+           diagnosis_age ~ n_children)
+summary(lm_nz)
+anova(lm_nz)
+
+lm_nz_dx = lm(data = dat %>% filter(study =='NZBRI'), 
+           diagnosis_age ~ n_children * sex)
+summary(lm_nz_dx)
+anova(lm_nz_dx)
+
+lm_nz_sx = lm(data = dat %>% filter(study =='NZBRI'), 
+           symptom_onset_age ~ n_children * sex)
+summary(lm_nz_sx)
+anova(lm_nz_sx)
+
+lm_nz_birth = lm(data = dat %>% filter(study =='NZBRI'), 
+           n_children ~ birth_year_std * sex)
+summary(lm_nz_birth)
+anova(lm_nz_birth)
+
+# PPMI diagnosis or onset age ~ number of children:
+lm_ppmi = lm(data = dat %>% filter(study =='PPMI'), 
+           diagnosis_age ~ n_children)
+summary(lm_ppmi)
+confint(lm_ppmi)
+anova(lm_ppmi)
+
+lm_ppmi_dx = lm(data = dat %>% filter(study =='PPMI'), 
+           diagnosis_age ~ n_children * sex)
+summary(lm_ppmi_dx)
+anova(lm_ppmi_dx)
+
+lm_ppmi_sx = lm(data = dat %>% filter(study =='PPMI'), 
+           symptom_onset_age ~ n_children * sex)
+summary(lm_ppmi_sx)
+anova(lm_ppmi_sx)
+
+lm_ppmi_birth = lm(data = dat %>% filter(study =='PPMI'), 
+           n_children ~ birth_year_std * sex)
+summary(lm_ppmi_birth)
+anova(lm_ppmi_birth)
+
+
+# model comparison:
+AIC(lm_ppmi)
+AIC(lm_ppmi_dx)
+
+```
+
+
+# Introduction
+The incidence and prevalence of Parkinson’s are lower in women than in men. [@taylor2007_HeterogeneityMaleFemale; @myall2017_ParkinsonOldestOld] The cause is unknown but could include increased exposure to risk factors for men, such as head injury or occupational use of toxins.[@savica2013_RiskFactorsParkinson] Conversely, there could be protective factors that apply differentially to women, possibly including exposure to endogenous or exogenous sex hormones such as œstrogens and progestogens.
+
+There are plausible mechanisms for how female sex hormones could play a neuroprotective role in neurodegenerative conditions like Parkinson's.[@roof2000_GenderDifferencesAcute] Many observational human studies have therefore examined whether there is evidence that increased hormone exposure actually protects against Parkinson's. This requires operationalising an individual woman's lifetime hormonal exposure level, using numerous measures such as fertile life span (the duration between age at menarche and age at menopause), the use of oral contraceptives, or a history of hormone replacement therapy. Despite some positive studies, however, a recent meta-analysis showed little epidemiological support for relationships between any such measures and a lower subsequent risk of Parkinson’s.[@lv2017_ReproductiveFactorsRisk]
+
+Lv _et al.'s_ meta-analysis included an examination of five case-control and three cohort studies of the effect of parity (number of childbirths) upon the risk of women subsequently developing Parkinson’s. This also showed no effect, with the relative risk of Parkinson's between the highest and lowest number of births being 0.99 (95% CI: 0.79–1.25). Two studies have, however, reported another childbirth-related association that was not specifically addressed in that meta-analysis: among women who have been diagnosed with Parkinson’s, they found that each additional childbirth was associated with a later age of onset [@haaxma2007_GenderDifferencesParkinson; @frentzel2017_IncreaseReproductiveLife]. That is, although having children might not reduce the risk of developing Parkinson’s _per se,_  it might at least slow the pathological process, leading to a later onset. The associations were of a surprisingly large magnitude: Haaxma _et al._ [-@haaxma2007_GenderDifferencesParkinson] found symptom onset in women to be later by 2.7 years per childbirth (95% CI: 0.8 – 4.6) while Frentzel _et al._ [-@frentzel2017_IncreaseReproductiveLife] independently found a delay of 2.6 years per birth (95% CI: 0.05 – 5.1). (In neither report was the effect as linear as these single coefficients might imply, however.)
+
+A challenge in such observational studies can be applying valid control groups. For example, women without Parkinson's lack the disease outcome measures (such as age of onset), while men with Parkinson's lack the predictor hormonal measures. For the specific factor of number of children, however, men with Parkinson’s can and should be used as a control, to test for non-biological explanations. Therefore we sought to examine the association between number of children and Parkinson's age of onset, in both men and women. If the relationship is absent in men, it would provide better evidence for a protective hormonal effect specific to women. If a similar relationship holds in men, it would strongly indicate a non-biological cause, common to both sexes.
+
+# Methods
+
+## Data sets
+*PPMI:* We downloaded the openly-available Parkinson’s Progressive Marker Initiative dataset (PPMI, see Acknowledgments). PPMI is an incident study, with a mean 7 months (SD 7 months) between diagnosis and study entry (see Table \@ref(tab:demog-table)). Data on participants' number of children was available for 421 of the study's 423 idiopathic Parkinson's cases.
+
+*NZBRI:* At the New Zealand Brain Research Institute (NZBRI) we conducted two online surveys on risk factors, in which 604 people with idiopathic Parkinson's (210 women, 394 men) provided valid data on number of children and age of onset (see Table \@ref(tab:demog-table)). The first survey (`r nrow(dat_canty)` valid cases) recruited from our ongoing longitudinal study of a convenience prevalence sample from the local Canterbury region. The second survey (`r nrow(dat_national)` valid cases) was nation-wide, recruiting from the membership (excluding Canterbury) of the Parkinson's New Zealand charitable trust. In both surveys, cases ranged from the recently-diagnosed to those with a long history of disease (those with dementia had assistance to complete the survey).
+
+
+## Analyses
+Data were fit with simple Bayesian linear models, using the _brms_ package[@burkner2017_BrmsPackageBayesian] in the R statistical environment[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical]. Parameters were given default improper flat priors. Disease onset was defined as the age at which a formal diagnosis of Parkinson's was made.
+
+When testing hypotheses that there was an association between the number of children and age (of diagnosis or birth), in each case we compared a model containing the number of children as a predictor to an intercept-only model (i.e. a model of no association, which simply estimated the mean age). Bayes factors indicated how much more likely it was that incorporating the number of children as a predictor provided a better fit to the data than an intercept-only model.
+
+```{r demog-table}
+dat %>% 
+  group_by(study, sex) %>% 
+  summarise(n = n(),
+            age = 
+              paste0(round(mean(age, na.rm = TRUE), digits = 1), ' (', 
+                     round(sd(age, na.rm = TRUE), digits = 1), ')'),
+            diagnosis_age = 
+              paste0(round(mean(diagnosis_age, na.rm = TRUE), digits = 1), ' (', 
+                     round(sd(diagnosis_age, na.rm = TRUE), digits = 1), ')'),
+            duration = 
+              paste0(round(mean(duration_dx, na.rm = TRUE), digits = 1), ' (', 
+                     round(sd(duration_dx, na.rm = TRUE), digits = 1), ')')) %>% 
+  kable(col.names = c('Study', 'Sex', 'n', 'Mean age',
+                      'Mean age at diagnosis', 
+                      'Mean years disease duration'),
+        caption = 'Demographic characteristics of the PPMI and NZBRI samples.',
+        booktabs = TRUE) %>% # remove vertical gridlines
+  column_spec(5:6, width = '2.5cm') %>% # wrap long column headers
+  row_spec(0, bold = TRUE) %>% # bold header titles
+  kable_styling(full_width = FALSE, position = 'center') %>% 
+    collapse_rows(columns = 1, valign = 'middle') # PPMI and NZBRI labels span 2 rows
+
+
+```
+
+```{r histograms, eval=FALSE, include=FALSE}
+dat %>% 
+  ggplot(aes(x = diagnosis_age, fill = sex)) +
+  facet_grid(sex ~ study) +
+  geom_histogram(binwidth = 2) +
+  scale_fill_manual(values = two_colours) +
+  guides(fill = FALSE) +
+  ylab('Frequency\n') +
+  xlab('\nAge at diagnosis') +
+  theme(axis.ticks = element_line(colour = 'lightgrey'),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank())
+  
+```
+
+
+# Results
+
+## PPMI sample
+
+We first attempted to replicate the association between number of children and later disease onset in women in the PPMI sample. The linearly-modelled delay in diagnosis associated with children was `r ndigits(PPMI_Women_n_coefs['n_children','Estimate'])` years per child (credible interval [`r ndigits(PPMI_Women_n_coefs['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs['n_children','Q97.5'])`]). That estimate is the slope of the line in the upper-right panel of Figure \@ref(fig:main-figure)B, with a Bayes factor of `r ndigits(BF_PPMI_Women$bf)` indicating substantial evidence for an association. Similar results were, however, found for the men in this study, with a slope of `r ndigits(PPMI_Men_n_coefs['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs['n_children','Q2.5'])`, `r ndigits(PPMI_Men_n_coefs['n_children','Q97.5'])`] (see the upper-left panel of Figure \@ref(fig:main-figure)B). A Bayes factor of `r ndigits(BF_PPMI_Men$bf)` provided even stronger evidence for the association. That is, as the relationship between number of children and later disease onset was not unique to women, this strongly argues against the underlying cause being additional exposure to œstrogens.
+
+We also tested whether women actually had a later age of disease onset. As indicated in Table \@ref(tab:demog-table), the mean age at diagnosis was actually slightly _earlier_ for women, by `r ndigits(PPMI_sex_coefs['sexWomen','Estimate'])` [`r ndigits(PPMI_sex_coefs['sexWomen','Q2.5'])`, `r ndigits(PPMI_sex_coefs['sexWomen','Q97.5'])`] years, with the posterior distribution implying a probability of only `r ndigits(p_ppmi_women_later_onset, 2)` of a later onset in the population.
+
+## NZBRI sample
+
+There was no evidence of an association between number of children and age of onset in the NZBRI sample. The slope for women was only `r ndigits(NZBRI_Women_n_coefs['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Women_n_coefs['n_children','Q2.5'])`, `r ndigits(NZBRI_Women_n_coefs['n_children','Q97.5'])`], with a Bayes factor of `r ndigits(BF_NZBRI_Women$bf)` indicating no evidence for a positive association.  For men the results were similar, with a slope of  `r ndigits(NZBRI_Men_n_coefs['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs['n_children','Q2.5'])`, `r ndigits(NZBRI_Men_n_coefs['n_children','Q97.5'])`] and a Bayes factor of `r ndigits(BF_NZBRI_Men$bf)`.
+
+The mean age at diagnosis was marginally earlier for women in this sample, by `r ndigits(NZBRI_sex_coefs['sexWomen','Estimate'])` years  [`r ndigits(NZBRI_sex_coefs['sexWomen','Q2.5'])`, `r ndigits(NZBRI_sex_coefs['sexWomen','Q97.5'])`], with a posterior probability of `r ndigits(p_nzbri_women_later_onset, 2)` of onset actually being later in the population.
+
+## Testing a non-biological alternative explanation
+
+Due to societal changes in many countries, older people are more likely to have had larger families than would people born more recently. Figure \@ref(fig:main-figure)A shows there was indeed such a relationship, for the men and women in both studies (for ease of comparison with the age-of-onset effect, we plot number of children on the _x_-axis, although this does not reflect the direction of causality). We then modelled how many years earlier we would expect a patient to have been born, given how many children they had. _PPMI study._ Women: `r ndigits(PPMI_Women_n_coefs_birth['n_children','Estimate'])` years per child, credible interval [`r ndigits(PPMI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Women_birth$bf)`. Men: `r ndigits(PPMI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Men_birth$bf)`. _NZBRI study._ Women: `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Estimate'])` years per child, [`r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Women_birth$bf)`. Men: `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Men_birth$bf)`. (The coefficients are negative, as we are modelling year of birth, rather than age.)
+
+```{r diagnosis-age-graph, fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
+# main analysis: age at diagnosis as a function of number of
+# children, at both sites:
+diagnosis_panel = dat %>% 
+	ggplot(aes(x = n_children, y = round(diagnosis_age, digits = 0),
+	           group = sex)) +
+  facet_grid(study ~ sex) + 
+  guides(colour = FALSE) +
+	geom_point(alpha = I(0.5), size = 0.75, 
+	           position = position_jitter(width = 0.1, seed = 90210), 
+	           shape = 16, colour = '#861423') +
+  geom_smooth(method = 'lm', colour = 'black', size = 0.5) +
+  scale_x_continuous(breaks = seq(from = 0, to = 9, by = 1)) +
+  scale_y_continuous(breaks = seq(from = 30, to = 80, by = 10), 
+                     expand = c(0, 0), limits = c(30, 90)) +
+  #scale_colour_manual(values = two_colours) +
+  xlab('Number of children') +
+  ylab('Age at diagnosis') +
+  theme_bw(base_family = 'Gill Sans') +
+  theme(aspect.ratio = 1.25,
+        axis.text = element_text(size = 7, colour = '#021D60'),
+        axis.title = element_text(size = 10, colour = '#021D60'),
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.ticks = element_line(colour = '#021D60', size = 0.25),
+        panel.border = element_rect(colour = '#021D60', size = 0.5),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        strip.background = element_rect(colour = '#021D60', fill = '#021D60'),
+        strip.text = element_text(colour = 'white', size = 10),
+        plot.margin = unit(c(0.1, 0.1, 0.1, 0.25), 'cm'),
+        #plot.background=element_rect(fill = 'salmon'),
+        )
+
+ggsave(plot = diagnosis_panel, 'figures/Age at diagnosis by n children.pdf', 
+       device = cairo_pdf, width = 4, height = 4)
+
+```
+
+```{r birth-year-graph, fig.height=4, fig.width=4}
+
+# plot generational effect: number of children as a function
+# of birth year:
+birthyear_panel = dat %>% 
+  ggplot(aes(y = birth_year, x = n_children)) +
+  facet_grid(study ~ sex) +
+  geom_smooth(method = 'lm', colour = 'black', size = 0.5) +
+  geom_point(alpha = I(0.5),  size = 0.75,
+             position = position_jitter(width = 0.1, seed = 90210), 
+	           shape = 16, colour = '#861423') +
+  coord_cartesian(clip = 'off') +
+  scale_x_continuous(breaks = seq(from = 0, to = 9, by = 1)) +
+  scale_y_reverse(breaks = c(1930, 1940, 1950, 1960, 1970, 1980), 
+                     labels = c('1930', '', '1950', '', '1970', '')) +
+  guides(colour = FALSE) +
+  xlab('Number of children') +
+  ylab('Year of birth') +
+  theme_bw(base_family = 'Gill Sans') +
+  theme(aspect.ratio = 1.25,
+        axis.text = element_text(size = 7, colour = '#021D60'),
+        axis.title = element_text(size = 10, colour = '#021D60'),
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
+        axis.ticks = element_line(colour = '#021D60', size = 0.25),
+        panel.border = element_rect(colour = '#021D60', size = 0.25),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        strip.background = element_rect(colour = '#021D60', fill = '#021D60'),
+        strip.text = element_text(colour = 'white', size = 10),
+        plot.margin = unit(c(0.1, 0.1, 0.1, 0.25), 'cm'),
+        #plot.background=element_rect(fill = 'salmon'),
+        )
+
+ggsave(plot = birthyear_panel, 'figures/n children by year of birth.pdf', 
+       width = 4, height = 4, device = cairo_pdf)
+
+```
+
+```{r main-figure, fig.width = 17/2.54, fig.height = 9.7/2.54, fig.cap='(A). In both the PPMI and NZBRI studies, in both women and men, there was a background cohort effect in which older patients tended to have had more children than patients born more recently. The magnitude of this effect (the slope of the lines) was approximately each additional child being associated with patients having been born one year earlier. (B). The PPMI is an incident study and hence patient age and age-of-disease-onset are tightly correlated. Accordingly, the PPMI age-of-onset association almost perfectly reflects the underlying background societal association of older people having more children (at a similar magnitude of approximately one year per child). The NZBRI survey, however, was of a prevalent sample. The relationship between current age and age of onset therefore becomes de-coupled. Accordingly, the age-of-onset association was absent for both men and women in this sample.', dev='png', dev.args=list(type='cairo')}
+
+figure_1 = cowplot::plot_grid(birthyear_panel, diagnosis_panel, 
+                              align = 'v',
+                              axis = 'bt', ncol = 2,
+                              labels = c('A', 'B'),
+                              label_x = c(0.00, 0.025),
+                              label_y = 1.00)
+
+print(figure_1)
+
+ggsave(plot = figure_1, 
+       filename = 'figures/Figure_1.pdf', width = 17, height = 9.7, 
+       units = 'cm', device = cairo_pdf,)
+
+ggsave(plot = figure_1, 
+       filename = 'figures/Figure_1.png', width = 17, height = 9.7, 
+       units = 'cm', dpi = 600, type = 'cairo')
+
+```
+
+
+```{r ppmi-bars, eval=FALSE, include=FALSE}
+dat_ppmi %>% 
+  #group_by(sex, n_children) %>% 
+  #summarise(onset = mean(diagnosis_age)) %>% 
+  ggplot(aes(x = n_children, y = diagnosis_age)) + 
+  stat_summary(colour = 'red') +
+  geom_jitter(alpha = 0.2, width = 0.1) +
+  facet_grid(. ~ sex)
+  
+```
+
+# Discussion
+
+The association between having more children and later disease onset in the men of the PPMI sample is sufficient to discount a hormonal cause for the relationship (and reinforces the need to examine relevant control comparisons whenever possible). We tested a non-biological explanation, in common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In an incident study like PPMI, patients' ages, and their ages of disease onset, are almost perfectly correlated. Hence the diagnosis-age effect in the PPMI study (top row of Figure \@ref(fig:main-figure)B) almost perfectly resembles the simple background generational cohort effect (top row of Figure \@ref(fig:main-figure)A). The reported associations are therefore a classic example of the epidemiological flaw of mistaking an age effect for a cohort one.[@blanchard1977_DistinguishingAgingPeriod]
+
+The association between number of children and diagnosis age was not found in either sex in the NZBRI study (bottom row of Figure \@ref(fig:main-figure)B), although the background age effect (bottom row of Figure \@ref(fig:main-figure)A) was similar to that seen in the PPMI study. This makes sense, because in a prevalence sample, the relationship between patient age and their age of onset becomes decoupled, as the sample includes many people with longstanding disease. Take, for example, a pair of people, one with an age of onset at 50 and another of onset at 75. In an incident study, participants are recruited soon after diagnosis, and therefore this pair come from different generations: one would have been born approximately 25 years before the other. In a prevalent sample, however, that tight relationship breaks down. Both patients could even be the same age: one could have been recently diagnosed at age 75, while the other, also aged 75, would have a 25 year history of disease. We therefore predict that artefactual associations between number of children and the age of Parkinson's onset are most likely to be observed in samples that have a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (in each case, roughly one year per child in the PPMI sample). 
+
+Lastly, we found that women's age of onset was marginally _earlier_ compared to men. This is not inconsistent with the two previous reports: in the Frentzel _et al._ sample[@frentzel2017_IncreaseReproductiveLife], the women's age of onset (57.1) was similar to the men's (57.3), while Haaxma _et al._[@haaxma2007_GenderDifferencesParkinson] found it to be non-significantly later (53.4 vs 51.3, p = 0.06). At a national population level, further analysis of our previously reported drug-tracing epidemiological study[@pitcher2018_ParkinsonDiseaseEthnicities;@myall2017_ParkinsonOldestOld] of 10 500 [10 300,10 700] incident cases of Parkinson's found that age of onset for women was again, if anything, slightly earlier for women (69.8 [69.6, 70.0]) compared to men (70.5 [70.5,70.6]). That is, even if the association between childbirth and later onset was not artefactual, there may not be a sex difference that it is required to explain. 
+
+# Acknowledgments
+Some of the data used in the preparation of this article were obtained from the Parkinson's Progression Markers Initiative (PPMI) database (www.ppmi-info.org/data). For up-to-date information on the study, visit www.ppmi-info.org. PPMI – a public-private partnership – is funded by the Michael J. Fox Foundation for Parkinson's Research and funding partners, listed at www.ppmi-info.org/fundingpartners.
+
+# TODO
+- add uncertainty intervals on plots based on the models, as per the noisy prediction analysis (don't need to worry about any random effects, only fixed effects are involved).
+- "As per the PPMI Data Use and Biospecimen Use Agreements, investigators are reminded that they must submit all manuscripts and abstracts to the PPMI Data & Publications Committee (DPC) for administrative review prior to submission to a journal or conference. Review of submitted manuscripts and abstracts is guaranteed within one week of submission. To submit to the DPC, please upload the publication for review via the PPMI website."
+
+
+# Extra unused material
+- Both women and female animal models have been found to recover better than their male counterparts from acute neurological insults, such as stroke and traumatic brain injury [@brann2007_NeurotrophicNeuroprotectiveActions]. This has led to several decades of experimental studies of treatments with female sex hormones. Despite many promising pre-clinical results, however, multiple Phase III trials of progesterone in acute brain injury have been unsuccessful [@stein2015_EmbracingFailureWhat].
+
+- [@rugbjerg2013_ExposureEstrogenWomen] found no relationship between number of births and risk of PD from a registry study, but only 77 women had PD.
+Case control study including parity:[@popat2005_EffectReproductiveFactors]
+Study showing increased risk with increasing duration of pregnancies[@ragonese2004_RiskParkinsonDisease]
+Meta analysis of HRT showing no protective effect [@du2014_HormoneReplacementTherapy]
+Large prospective Nurses Health Study found no evidence that endogenous or exogenous œstrogens reduce the risk of Parkinson’s.[@simon2009_ReproductiveFactorsExogenous]
+
+- Support for the latter hypothesis has come from several directions, such as symptoms being found to be worse in women with lower circulating œstrogen levels, and the risk of Parkinson's being elevated after menopause or in the climacteric period beforehand, compared to other women of the same age [@villa2016_EstrogensNeuroinflammationNeurodegeneration]. The large prospective Nurses Health Study, however, found no evidence that endogenous or exogenous œstrogens reduce the risk of Parkinson's [@simon2009_ReproductiveFactorsExogenous].
+
+- [@ascherio2016_EpidemiologyParkinsonDisease] review. Risk is actually increased by use of post-menopausal HRT. Then conclude that "overall, there is no convincing evidence of associations between Parkinson’s disease risk and other reproductive factors, including age at menarche, use of oral contraceptives, pregnancy history, or type of menopause". Although note that at least one of these references _does_ show effects.
+
+- [@lv2017_ReproductiveFactorsRisk] meta analysis examined five case-control and three cohort studies to look at effect of parity and found the RR to be 0.99 (95% CI: 0.79–1.25) but is unclear what the exact comparison was (i.e birth vs no birth, or cumulative effect of number of births), and the outcome measure was RR of PD, not delayed onset per child. So e.g. the Haaxma paper [@haaxma2007_GenderDifferencesParkinson] is not actually included in that sub-analysis (it is cited for other things), and the Frentzel paper [@frentzel2017_IncreaseReproductiveLife] is not included as it came out later.
+
+- review the orginal papers for their mix of incident vs prevalent cases.
+  - Haaxma 2007 was of patients not on levodopa or dopamine agonists and all within 10 years of sx (mean for women was 2.5 years).
+  - Frentzel 2017 the mean sx duration was 5.8 years (5.0), closer to our study. Women's age of onset (57.1 (11.8) was similar to men (57.3 (11.1)).
+  - Neither showed a linear increase, so the PPMI incident study may be the purest in showing this artefact.
+- [@twelves2003_SystematicReviewIncidence] found slightly earlier onset for men in six of eight incidence studies, but this was an informal review of mean values rather than a quantitative meta-analysis that formally assessed uncertainty within and across studies.
+- [@taylor2007_HeterogeneityMaleFemale] meta-analysis of male to female risk found that the ratio of 1.5:1 except in Chinese and Japanese populations, saying this argued against "a fundamental protective effect of œstrogen, which would be expected to be present in all populations".
+
+# References
+
+
