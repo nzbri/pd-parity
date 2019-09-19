@@ -136,6 +136,9 @@ if (!USE_CACHED_CANTERBURY_DATA) {
 
 
 ```{r define-variables}
+# how many iterations to use in the model fitting:
+N_ITERATIONS = 4000
+
 # specify manual colour scheme:
 two_colours = c('#D55E00', '#0072B2')
 
@@ -512,7 +515,7 @@ if (RECALCULATE_MODELS) {
     # for assessing sex group differences in mean onset age,
     model = brm(data = dat %>% filter(study == study_name), 
                 diagnosis_age ~ sex, save_all_pars = TRUE,
-                iter = 4000)
+                iter = N_ITERATIONS)
     saveRDS(model, paste0('models/brm_', study_name, '_dxage', '_sex.rds'))
     
     # for looking at relationship with n_children within each sex:
@@ -522,7 +525,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ 1, save_all_pars = TRUE,
-                  iter = 4000)
+                  iter = N_ITERATIONS)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
       
@@ -530,7 +533,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ n_children, save_all_pars = TRUE,
-                  iter = 4000)
+                  iter = N_ITERATIONS)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_n.rds'))
       
@@ -539,7 +542,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ 1, save_all_pars = TRUE,
-                  iter = 4000)
+                  iter = N_ITERATIONS)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
       
@@ -547,7 +550,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ n_children, save_all_pars = TRUE,
-                  iter = 4000)
+                  iter = N_ITERATIONS)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
     }
@@ -678,144 +681,6 @@ BF_NZBRI_Women_birth = bayes_factor(brm_NZBRI_birthyear_Women_n, brm_NZBRI_birth
 
 ```
 
-```{r DISCARD-compare-PPMI, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
-
-summary(brm_PPMI_int)
-summary(brm_PPMI_sex)
-bayes_factor(brm_PPMI_sex, brm_PPMI_int)
-
-# compare:
-loo(brm_PPMI_int, brm_PPMI_sex)
-
-
-summary(brm_PPMI_n)
-
-a = posterior_samples(brm_PPMI_n)
-
-#qplot(a$b_n_children)
-
-
-#summary(brm_PPMI_n_sex)
-
-#marginal_effects(brm_PPMI_n_sex)
-
-loo(brm_PPMI_int, brm_PPMI_n)
-loo(brm_PPMI_int, brm_PPMI_n_sex)
-loo(brm_PPMI_n, brm_PPMI_n_sex)
-
-bf_PPMI_n = bayes_factor(brm_PPMI_n, brm_PPMI_int)
-bf_PPMI_n_sex = bayes_factor(brm_PPMI_n_sex, brm_PPMI_n)
-
-```
-
-```{r DISCARD-compare-NZBRI, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
-# Bayesian linear models
-
-# NZBRI intercept only:
-summary(brm_NZBRI_int)
-
-
-
-# group by sex:
-summary(brm_NZBRI_sex)
-
-bayes_factor(brm_NZBRI_int, brm_NZBRI_sex)
-
-posterior_samples(brm_NZBRI_sex) %>% 
-  mutate(above = b_sexWomen > 0) %>% 
-  summarise(prop = sum(above)/n())
-
-hypothesis(brm_NZBRI_sex, "Intercept + sexWomen > Intercept")
-
-# compare:
-loo(brm_NZBRI_int, brm_NZBRI_sex)
-
-# use n children as predictor:
-summary(brm_NZBRI_n)
-
-# add sex as predictor:
-summary(brm_NZBRI_n_sex)
-
-
-bf_NZBRI_n = bayes_factor(brm_NZBRI_n, brm_NZBRI_int)
-bf_NZBRI_n_sex = bayes_factor(brm_NZBRI_n_sex, brm_NZBRI_n)
-
-
-# Bayesian t-tests of age of onset differences 
-# ### NB need to upgrade to a "Welch's test" equivalent
-
-# t_nz_dx_age = brm(data = dat %>% filter(study =='NZBRI'), 
-#            diagnosis_age ~ sex)
-# 
-# summary(t_nz_dx_age)
-# 
-# t_nz_dx_age_welch = brm(data = dat %>% filter(study =='NZBRI'),
-#                         bf(diagnosis_age ~ sex, sigma ~ sex))
-# summary(t_nz_dx_age_welch)
-# 
-# hypothesis(t_nz_dx_age, "Intercept < Intercept + sexMen")
-# 
-# hypothesis(t_nz_dx_age, "sexMen = 0")
-# 
-# hypothesis(t_nz_dx_age, "Intercept = 0")
-# 
-# mean(posterior_samples(t_nz_dx_age, "^b") > 0)
-
-
-```
-
-```{r DISCARD-simple-models, eval=FALSE, include=FALSE}
-# NZBRI diagnosis or onset age ~ number of children:
-lm_nz = lm(data = dat %>% filter(study =='NZBRI'), 
-           diagnosis_age ~ n_children)
-summary(lm_nz)
-anova(lm_nz)
-
-lm_nz_dx = lm(data = dat %>% filter(study =='NZBRI'), 
-           diagnosis_age ~ n_children * sex)
-summary(lm_nz_dx)
-anova(lm_nz_dx)
-
-lm_nz_sx = lm(data = dat %>% filter(study =='NZBRI'), 
-           symptom_onset_age ~ n_children * sex)
-summary(lm_nz_sx)
-anova(lm_nz_sx)
-
-lm_nz_birth = lm(data = dat %>% filter(study =='NZBRI'), 
-           n_children ~ birth_year_std * sex)
-summary(lm_nz_birth)
-anova(lm_nz_birth)
-
-# PPMI diagnosis or onset age ~ number of children:
-lm_ppmi = lm(data = dat %>% filter(study =='PPMI'), 
-           diagnosis_age ~ n_children)
-summary(lm_ppmi)
-confint(lm_ppmi)
-anova(lm_ppmi)
-
-lm_ppmi_dx = lm(data = dat %>% filter(study =='PPMI'), 
-           diagnosis_age ~ n_children * sex)
-summary(lm_ppmi_dx)
-anova(lm_ppmi_dx)
-
-lm_ppmi_sx = lm(data = dat %>% filter(study =='PPMI'), 
-           symptom_onset_age ~ n_children * sex)
-summary(lm_ppmi_sx)
-anova(lm_ppmi_sx)
-
-lm_ppmi_birth = lm(data = dat %>% filter(study =='PPMI'), 
-           n_children ~ birth_year_std * sex)
-summary(lm_ppmi_birth)
-anova(lm_ppmi_birth)
-
-
-# model comparison:
-AIC(lm_ppmi)
-AIC(lm_ppmi_dx)
-
-```
-
-
 # Introduction
 The incidence and prevalence of Parkinson’s are lower in women than in men. [@taylor2007_HeterogeneityMaleFemale; @myall2017_ParkinsonOldestOld] The cause is unknown but could include increased exposure to risk factors for men, such as head injury or occupational use of toxins.[@savica2013_RiskFactorsParkinson] Conversely, there could be protective factors that apply differentially to women, possibly including exposure to endogenous or exogenous sex hormones such as œstrogens and progestogens.
 
@@ -900,7 +765,7 @@ The mean age at diagnosis was marginally earlier for women in this sample, by `r
 
 ## Testing a non-biological alternative explanation
 
-Due to societal changes in many countries, older people are more likely to have had larger families than would people born more recently. Figure \@ref(fig:main-figure)A shows there was indeed such a relationship, for the men and women in both studies (for ease of comparison with the age-of-onset effect, we plot number of children on the _x_-axis, although this does not reflect the direction of causality). We then modelled how many years earlier we would expect a patient to have been born, given how many children they had. _PPMI study._ Women: `r ndigits(PPMI_Women_n_coefs_birth['n_children','Estimate'])` years per child, uncertainty interval [`r ndigits(PPMI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Women_birth$bf, 0)`. Men: `r ndigits(PPMI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Men_birth$bf, 0)`. _NZBRI study._ Women: `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Estimate'])` years per child, [`r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Women_birth$bf)`. Men: `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Men_birth$bf, 0)`. (The coefficients are negative, as we are modelling year of birth, rather than age.)
+Due to societal changes in many countries, older people are more likely to have had larger families than would people born more recently. Figure \@ref(fig:main-figure)A shows there was indeed such a relationship, for the men and women in both studies (for ease of comparison with the age-of-onset effect, we plot number of children on the _x_-axis, although this does not reflect the direction of causality). We then modelled how many years earlier we would expect a patient to have been born, given how many children they had. _PPMI study._ Women: `r ndigits(PPMI_Women_n_coefs_birth['n_children','Estimate'])` years per child, uncertainty interval [`r ndigits(PPMI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Women_birth$bf, 0)`. Men: `r ndigits(PPMI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Men_birth$bf, 0)`. _NZBRI study._ Women: `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Estimate'])` years per child, [`r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Women_birth$bf)`. (Although the evidence for this association was not strong in this sample, we know that the population fertility for New Zealand women did decline markedly in the late twentieth century.[@pool2011_FamiliesHistoryColonial]) Men: `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Men_birth$bf, 0)`. (The coefficients are negative, as we are modelling year of birth, rather than age.)
 
 ```{r diagnosis-age-graph, fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
 # main analysis: age at diagnosis as a function of number of
@@ -1003,18 +868,6 @@ ggsave(plot = figure_1,
        filename = 'figures/Figure_1.png', width = 17, height = 9.7, 
        units = 'cm', dpi = 600, type = 'cairo')
 
-```
-
-
-```{r ppmi-bars, eval=FALSE, include=FALSE}
-dat_ppmi %>% 
-  #group_by(sex, n_children) %>% 
-  #summarise(onset = mean(diagnosis_age)) %>% 
-  ggplot(aes(x = n_children, y = diagnosis_age)) + 
-  stat_summary(colour = 'red') +
-  geom_jitter(alpha = 0.2, width = 0.1) +
-  facet_grid(. ~ sex)
-  
 ```
 
 # Discussion
