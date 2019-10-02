@@ -40,7 +40,7 @@ abstract: |
   **Conclusion:** Despite being replicable in certain circumstances, the association between childbirth and later Parkinson's onset is an artefact of generational cohort differences.
 
 keywords          : "Parkinson disease, sex differences, pregnancy, epidemiology,  cohort effects, sex hormones"
-wordcount         : "1711 TODO final check"
+wordcount         : "1741 TODO final check"
 
 floatsintext      : no
 figurelist        : no
@@ -126,6 +126,7 @@ library(kableExtra) # additional table formatting options
 library(lubridate)  # manipulate dates
 library(janitor)    # clean column names
 library(brms)       # bayesian modelling
+library(ggeffects)  # for visualising model predictions
 library(cowplot)    # construct multi-panel figures
 
 if (!USE_CACHED_CANTERBURY_DATA) {
@@ -555,30 +556,13 @@ if (RECALCULATE_MODELS) {
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
     }
     
-    # these older models can hopefully be dropped. They were for an initial, 
-    # more complicated model-comparison approach:
-    
-    # # intercept only:
-    # model = brm(data = dat %>% filter(study == study_name), 
-    #             diagnosis_age ~ 1, save_all_pars = TRUE)
-    # saveRDS(model, paste0('models/brm_', study_name, '_int.rds'))
-    # 
-    # # use n children as predictor:
-    # model = brm(data = dat %>% filter(study == study_name), 
-    #             diagnosis_age ~ n_children, save_all_pars = TRUE)
-    # saveRDS(model, paste0('models/brm_', study_name, '_n.rds'))
-    # 
-    # # add sex as predictor:
-    # model = brm(data = dat %>% filter(study == study_name), 
-    #             diagnosis_age ~ n_children * sex, save_all_pars = TRUE)
-    # saveRDS(model, paste0('models/brm_', study_name, '_n_sex.rds'))
-    
   }
   }
 
 # regardless, now read in the previously-fitted models from disk.
 # construct the name of the model (e.g. 'brm_PPMI_dxage_int'):
 for (study_name in c('PPMI', 'NZBRI')) {
+  
   # first the dxage models:
   for (model_vars in c('sex', 'Men_int', 'Women_int', 'Men_n', 'Women_n')) {
     model_name = paste('brm', study_name, 'dxage', model_vars, sep = '_')
@@ -588,10 +572,22 @@ for (study_name in c('PPMI', 'NZBRI')) {
     
     # assign to a variable with the associated name:
     assign(model_name, model)
+    
+    # for Women_n and Men_n models, predict values to get lines and intervals 
+    # for depicting the models graphically, supplementing the raw data:
+    if (str_ends(model_name, '_n')) {
+      sex = str_sub(model_vars, start = 1, end = -3)
+      prediction_name = paste('ggpredict', study_name, 'dxage', 
+                              model_vars, sep = '_')
+      prediction = ggpredict(model, terms = ~ n_children) %>%
+        rename(n_children = x, diagnosis_age = predicted) %>% 
+        mutate(sex = sex, study = study_name)
+      assign(prediction_name, prediction)
+    }
   }
   
   # then the birthyear ones
-   for (model_vars in c('Men_int', 'Men_n', 'Women_int', 'Women_n')) {
+  for (model_vars in c('Men_int', 'Women_int', 'Men_n', 'Women_n')) {
     model_name = paste('brm', study_name, 'birthyear', model_vars, sep = '_')
     
     # read its saved representation from disk:
@@ -599,11 +595,37 @@ for (study_name in c('PPMI', 'NZBRI')) {
     
     # assign to a variable with the associated name:
     assign(model_name, model)
+    
+    # predict to get confidence intervals for graphing the fixed effects:
+    if (str_ends(model_name, '_n')) {
+      sex = str_sub(model_vars, start = 1, end = -3)
+      prediction_name = paste('ggpredict', study_name, 'birthyear', 
+                              model_vars, sep = '_')
+      prediction = ggpredict(model, terms = ~ n_children) %>%
+        rename(n_children = x, birth_year = predicted) %>% 
+        mutate(sex = sex, study = study_name)
+      assign(prediction_name, prediction)
+    }
   }
-  
 }
 
-remove(model) # tidy up orphaned reference
+# make dataframes that can be used for plotting the predicted values:
+dxage_predictions = bind_rows(ggpredict_NZBRI_dxage_Men_n,
+                              ggpredict_NZBRI_dxage_Women_n,
+                              ggpredict_PPMI_dxage_Men_n,
+                              ggpredict_PPMI_dxage_Women_n) %>% 
+  mutate(study = factor(study, levels = c('PPMI', 'NZBRI')))
+
+birthyear_predictions = bind_rows(ggpredict_NZBRI_birthyear_Men_n,
+                                  ggpredict_NZBRI_birthyear_Women_n,
+                                  ggpredict_PPMI_birthyear_Men_n,
+                                  ggpredict_PPMI_birthyear_Women_n) %>% 
+  mutate(study = factor(study, levels = c('PPMI', 'NZBRI')))
+
+# tidy up orphaned references:
+remove(model)
+remove(prediction)
+remove(list = ls(pattern = 'ggpredict_')) 
 
 ```
 
@@ -678,6 +700,23 @@ BF_PPMI_Men_birth = bayes_factor(brm_PPMI_birthyear_Men_n, brm_PPMI_birthyear_Me
 BF_PPMI_Women_birth = bayes_factor(brm_PPMI_birthyear_Women_n, brm_PPMI_birthyear_Women_int)
 BF_NZBRI_Men_birth = bayes_factor(brm_NZBRI_birthyear_Men_n, brm_NZBRI_birthyear_Men_int)
 BF_NZBRI_Women_birth = bayes_factor(brm_NZBRI_birthyear_Women_n, brm_NZBRI_birthyear_Women_int)
+
+# construct dataframes that can be used to overlay these BF values upon facets
+# of their respective graphs:
+
+BFs_dxage = tibble(study = rep(c('PPMI', 'NZBRI'), each = 2), 
+                   sex = rep(c('Men', 'Women'), times = 2),
+                   BF = c(BF_PPMI_Men$bf, BF_PPMI_Women$bf, 
+                          BF_NZBRI_Men$bf, BF_NZBRI_Women$bf),
+                   x = 7, y = 35) %>% 
+  mutate(study = factor(study, levels = c('PPMI', 'NZBRI')))
+
+BFs_birthyear = tibble(study = rep(c('PPMI', 'NZBRI'), each = 2), 
+                       sex = rep(c('Men', 'Women'), times = 2),
+                       BF = c(BF_PPMI_Men_birth$bf, BF_PPMI_Women_birth$bf, 
+                              BF_NZBRI_Men_birth$bf, BF_NZBRI_Women_birth$bf),
+                       x = 7, y = 1977) %>% 
+  mutate(study = factor(study, levels = c('PPMI', 'NZBRI')))
 
 ```
 
@@ -768,40 +807,51 @@ The mean age at diagnosis was marginally earlier for women in this sample, by `r
 Due to societal changes in many countries, older people are more likely to have had larger families than would people born more recently. Figure \@ref(fig:main-figure)A shows there was indeed such a relationship, for the men and women in both studies (for ease of comparison with the age-of-onset effect, we plot number of children on the _x_-axis, although this does not reflect the direction of causality). We then modelled how many years earlier we would expect a patient to have been born, given how many children they had. _PPMI study._ Women: `r ndigits(PPMI_Women_n_coefs_birth['n_children','Estimate'])` years per child, uncertainty interval [`r ndigits(PPMI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Women_birth$bf, 0)`. Men: `r ndigits(PPMI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_PPMI_Men_birth$bf, 0)`. _NZBRI study._ Women: `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Estimate'])` years per child, [`r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Women_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Women_birth$bf)`. (Although the evidence for this association was not strong in this sample, we know that the population fertility for New Zealand women did decline markedly in the late twentieth century.[@pool2011_FamiliesHistoryColonial]) Men: `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Estimate'])` years per child [`r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q2.5'], 2)`, `r ndigits(NZBRI_Men_n_coefs_birth['n_children','Q97.5'])`], Bayes factor `r ndigits(BF_NZBRI_Men_birth$bf, 0)`. (The coefficients are negative, as we are modelling year of birth, rather than age.)
 
 ```{r diagnosis-age-graph, fig.height=4, fig.width=4, message=FALSE, warning=FALSE}
-# main analysis: age at diagnosis as a function of number of
-# children, at both sites:
+# main result: age at diagnosis as a function of number of
+# children, in each sex and for both sites:
 diagnosis_panel = dat %>% 
-	ggplot(aes(x = n_children, y = round(diagnosis_age, digits = 0),
-	           group = sex)) +
+	ggplot() +
   facet_grid(study ~ sex) + 
-  guides(colour = FALSE) +
-	geom_point(alpha = I(0.5), size = 0.75, 
-	           position = position_jitter(width = 0.1, seed = 90210), 
-	           shape = 16, colour = '#861423') +
-  geom_smooth(method = 'lm', colour = 'black', size = 0.5) +
+  geom_ribbon(data = dxage_predictions,
+               aes(x = n_children,
+                   ymin = conf.low, ymax = conf.high, fill = study), 
+               colour = NA, alpha = 0.35) +
+  geom_line(data = dxage_predictions, 
+            aes(x = n_children,
+                y = diagnosis_age),
+            size = 0.25, linetype = 'solid') + # actual model fit
+	geom_point(aes(x = n_children,
+	               y = round(diagnosis_age, digits = 0), colour = study),
+	               alpha = I(0.65), size = 0.6, 
+	               position = position_jitter(width = 0.1, seed = 90210), 
+	               shape = 16) +
+  geom_text(data = BFs_dxage, aes(x = x, y = y,
+                                  label = paste('BF[10] ==', round(BF, digits = 1))),
+            family = 'Gill Sans', size = 7 * (5/14),
+            parse = TRUE) + # parse the subscript notation
   scale_x_continuous(breaks = seq(from = 0, to = 9, by = 1)) +
   scale_y_continuous(breaks = seq(from = 30, to = 80, by = 10), 
                      expand = c(0, 0), limits = c(30, 90)) +
-  #scale_colour_manual(values = two_colours) +
+  scale_fill_manual(values = two_colours) +
+  scale_colour_manual(values = two_colours) +
+  guides(colour = FALSE, fill = FALSE) +
   xlab('Number of children') +
   ylab('Age at diagnosis') +
   theme_bw(base_family = 'Gill Sans') +
   theme(aspect.ratio = 1.25,
-        axis.text = element_text(size = 7, colour = '#021D60'),
-        axis.title = element_text(size = 10, colour = '#021D60'),
+        axis.text = element_text(size = 7, colour = 'black'),
+        axis.title = element_text(size = 10),
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        axis.ticks = element_line(colour = '#021D60', size = 0.25),
-        panel.border = element_rect(colour = '#021D60', size = 0.5),
+        axis.title.y = element_text(margin = margin(t = 0, r = 0, b = 0, l = 0)),
+        axis.ticks = element_line(colour = '#9A1D2B', size = 0.25),
+        panel.border = element_rect(colour = '#9A1D2B', size = 0.5),
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.x = element_blank(),
-        strip.background = element_rect(colour = '#021D60', fill = '#021D60'),
+        strip.background = element_rect(colour = '#9A1D2B', fill = '#9A1D2B'),
         strip.text = element_text(colour = 'white', size = 10),
-        plot.margin = unit(c(0.1, 0.1, 0.1, 0.25), 'cm'),
-        #plot.background=element_rect(fill = 'salmon'),
-        )
+        plot.margin = unit(c(0.1, 0.1, 0.1, 0.25), 'cm'))
 
 ggsave(plot = diagnosis_panel, 'figures/Age at diagnosis by n children.pdf', 
        device = cairo_pdf, width = 4, height = 4)
@@ -809,47 +859,58 @@ ggsave(plot = diagnosis_panel, 'figures/Age at diagnosis by n children.pdf',
 ```
 
 ```{r birth-year-graph, fig.height=4, fig.width=4}
-
-# plot generational effect: number of children as a function
-# of birth year:
+# plot the generational effect: number of children as a function
+# of patient year of birth:
 birthyear_panel = dat %>% 
-  ggplot(aes(y = birth_year, x = n_children)) +
+  ggplot() +
   facet_grid(study ~ sex) +
-  geom_smooth(method = 'lm', colour = 'black', size = 0.5) +
-  geom_point(alpha = I(0.5),  size = 0.75,
+  geom_ribbon(data = birthyear_predictions,
+               aes(x = n_children,
+                   ymin = conf.low, ymax = conf.high, fill = study), 
+               colour = NA, alpha = 0.35) +
+  geom_line(data = birthyear_predictions, 
+            aes(x = n_children,
+                y = birth_year),
+            size = 0.25, linetype = 'solid') + # actual model fit
+  geom_point(aes(x = n_children,
+                 y = birth_year, colour = study), alpha = I(0.65),  size = 0.6,
              position = position_jitter(width = 0.1, seed = 90210), 
-	           shape = 16, colour = '#861423') +
+	           shape = 16) +
+  geom_text(data = BFs_birthyear, aes(x = x, y = y,
+                                  label = paste('BF[10] ==', round(BF, digits = 1))),
+            family = 'Gill Sans', size = 7 * (5/14),
+            parse = TRUE) + # parse the subscript notation
   coord_cartesian(clip = 'off') +
   scale_x_continuous(breaks = seq(from = 0, to = 9, by = 1)) +
   scale_y_reverse(breaks = c(1930, 1940, 1950, 1960, 1970, 1980), 
                      labels = c('1930', '', '1950', '', '1970', '')) +
-  guides(colour = FALSE) +
+  scale_fill_manual(values = two_colours) +
+  scale_colour_manual(values = two_colours) +
+  guides(colour = FALSE, fill = FALSE) +
   xlab('Number of children') +
-  ylab('Year of birth') +
+  ylab('Patient year of birth') +
   theme_bw(base_family = 'Gill Sans') +
   theme(aspect.ratio = 1.25,
-        axis.text = element_text(size = 7, colour = '#021D60'),
-        axis.title = element_text(size = 10, colour = '#021D60'),
+        axis.text = element_text(size = 7, colour = 'black'),
+        axis.title = element_text(size = 10),
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)),
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),
-        axis.ticks = element_line(colour = '#021D60', size = 0.25),
-        panel.border = element_rect(colour = '#021D60', size = 0.25),
+        axis.ticks = element_line(colour = '#9A1D2B', size = 0.25),
+        panel.border = element_rect(colour = '#9A1D2B', size = 0.25),
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
         panel.grid.major.x = element_blank(),
         panel.grid.minor.x = element_blank(),
-        strip.background = element_rect(colour = '#021D60', fill = '#021D60'),
+        strip.background = element_rect(colour = '#9A1D2B', fill = '#9A1D2B'),
         strip.text = element_text(colour = 'white', size = 10),
-        plot.margin = unit(c(0.1, 0.1, 0.1, 0.25), 'cm'),
-        #plot.background=element_rect(fill = 'salmon'),
-        )
+        plot.margin = unit(c(0.1, 0.1, 0.1, 0.25), 'cm'))
 
 ggsave(plot = birthyear_panel, 'figures/n children by year of birth.pdf', 
        width = 4, height = 4, device = cairo_pdf)
 
 ```
 
-```{r main-figure, fig.width = 17/2.54, fig.height = 9.7/2.54, fig.cap='(A). In both the PPMI and NZBRI studies, in both women and men, there was a background cohort effect in which older patients tended to have had more children than patients born more recently. The magnitude of this effect (i.e. the slope of each line) was each additional child being associated with patients having been born (approximately) one year earlier. (B). The PPMI is an incident study and hence patient age and age-of-disease-onset are tightly correlated. Accordingly, the PPMI age-of-onset association almost perfectly reflects the underlying background societal association of older people having more children (at a similar magnitude of approximately one year per child). The NZBRI survey, however, was of a prevalent sample. The relationship between current age and age of onset therefore becomes de-coupled. Accordingly, the age-of-onset association was absent for both men and women in this sample.', dev='png', dev.args=list(type='cairo')}
+```{r main-figure, fig.width = 17/2.54, fig.height = 9.7/2.54, fig.cap="**(A).** In both the PPMI (orange) and NZBRI (blue) studies, in both men and women, there was a background cohort effect in which older patients tended to have had more children than had patients who were born more recently. The magnitude of this effect (i.e. the slope of each line) was such that each additional child was associated with the average patient having been born (approximately) one year earlier. The Bayes factor (BF) labels indicate how many times more likely the data was better fit by each model, compared to the null hypothesis of there being no association (i.e. a flat line). **(B).** PPMI is an incident study and hence patient age and age-of-disease-onset are tightly correlated. Accordingly, the PPMI age-of-onset association almost perfectly reflects the underlying background societal association of older people having more children (at a similar magnitude of approximately one year per child). By contrast, the NZBRI survey was of a prevalent sample, in which a patient's current age and their age of onset are no longer necessarily coupled. That is, a patient of a given age might have been recently diagnosed, or they could have long-standing disease. Accordingly, the age-of-onset association was absent for both the NZBRI men and women (as indicated by the small Bayes factors). Figure by MacAskill (2019), distributed at https://doi.org/10.6084/m9.figshare.9928460 under an open CC-BY 4.0 license.", dev='png', dev.args=list(type='cairo')}
 
 figure_1 = cowplot::plot_grid(birthyear_panel, diagnosis_panel, 
                               align = 'v',
@@ -880,11 +941,6 @@ Lastly, we found that women's age of onset was marginally _earlier_ compared to 
 
 # Acknowledgments
 Some of the data used in the preparation of this article were obtained from the Parkinson's Progression Markers Initiative (PPMI) database (www.ppmi-info.org/data). For up-to-date information on the study, visit www.ppmi-info.org. PPMI – a public-private partnership – is funded by the Michael J. Fox Foundation for Parkinson's Research and funding partners, listed at www.ppmi-info.org/fundingpartners.
-
-# TODO
-- add uncertainty intervals on plots based on the models, as per the noisy prediction analysis (don't need to worry about any random effects, only fixed effects are involved).
-- "As per the PPMI Data Use and Biospecimen Use Agreements, investigators are reminded that they must submit all manuscripts and abstracts to the PPMI Data & Publications Committee (DPC) for administrative review prior to submission to a journal or conference. Review of submitted manuscripts and abstracts is guaranteed within one week of submission. To submit to the DPC, please upload the publication for review via the PPMI website."
-- Submit figure to figshare.com and cite in caption.
 
 # References
 
