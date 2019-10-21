@@ -1,5 +1,5 @@
 ---
-title: "The association between childbirth and delayed Parkinson's onset is a non-biological artefact of societal change."
+title: "Childbirth and delayed Parkinson’s onset: a reproducible non-biological artefact of societal change."
 shorttitle: "Parkinson's and childbirth"
 
 author: 
