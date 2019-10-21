@@ -40,7 +40,7 @@ abstract: |
   **Conclusion:** Despite being replicable in certain circumstances, associations between childbirth and later Parkinson's onset are an artefact of generational cohort differences.
 
 keywords          : "Parkinson disease, sex differences, pregnancy, epidemiology,  cohort effects, sex hormones"
-wordcount         : "Abstract: 150, main body: 1691"
+wordcount         : "Abstract: 150, main body: 1692"
 
 floatsintext      : no
 figurelist        : no
