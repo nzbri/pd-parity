@@ -74,6 +74,14 @@ rstan::rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
 ###########################################################################
+# fitting the models takes time, so set this variable to FALSE to allow 
+# reading previously-fit models that have been saved to disk. THESE MODELS
+# ARE NOT NECESSARILY PLATFORM-AGNOSTIC, SO THEY MAY NEED TO BE RECALCULATED 
+# THE FIRST TIME THIS SCRIPT IS RUN ON A NEW COMPUTER:
+RECALCULATE_MODELS = FALSE
+###########################################################################
+
+###########################################################################
 # The Canterbury data requires matching survey responses to NZBRI-held info
 # on diagnosis age. This will eventually break, as it relies on an old 
 # internal processes to access data. So after the data sources were matched, 
@@ -85,7 +93,7 @@ USE_CACHED_CANTERBURY_DATA = TRUE
 
 ###########################################################################
 # The NZ national data required a lot of tidying. For convenience, one can 
-# isntead import the processed file So after the data sources were matched, 
+# instead import the processed file So after the data sources were matched, 
 # we saved them to a cached .csv file on disk and use that thereafter.
 # This setting should be TRUE for people using the publicly-available
 # distribution, as only this tidied and anonymised data is included:
@@ -107,13 +115,6 @@ USE_CACHED_NATIONAL_DATA = TRUE
 USE_CACHED_PPMI_DATA = TRUE
 ###########################################################################
 
-###########################################################################
-# fitting the models takes time, so set this variable to FALSE to allow 
-# reading previously-fit models saved to disk. These models
-# are not necessarily platform-agnostic, so they may need to regenerated 
-# the first time this script is run on a new computer:
-RECALCULATE_MODELS = FALSE
-###########################################################################
 ```
 
 ```{r import-packages, message=FALSE}
@@ -784,7 +785,7 @@ dat %>%
 
 ## PPMI sample
 
-We first attempted to replicate the association between number of children and later disease onset in women. The linearly-modelled delay in diagnosis was `r ndigits(PPMI_Women_n_coefs['n_children','Estimate'])` years per child (uncertainty interval [`r ndigits(PPMI_Women_n_coefs['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs['n_children','Q97.5'])`]). This is the slope of the line in the upper-right panel of Figure \@ref(fig:main-figure)B. A Bayes factor of `r ndigits(BF_PPMI_Women$bf)` indicated substantial evidence for an association, compared to the intercept-only model. Similar results were, however, found for the PPMI men, with a slope of `r ndigits(PPMI_Men_n_coefs['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs['n_children','Q2.5'])`, `r ndigits(PPMI_Men_n_coefs['n_children','Q97.5'])`] and a Bayes factor of `r ndigits(BF_PPMI_Men$bf, 0)`. As the relationship was not unique to women, this strongly argues against the underlying cause being pregnancy- or birth-related.
+We first attempted to replicate the association between number of children and later disease onset in the PPMI women. The linearly-modelled delay in diagnosis was `r ndigits(PPMI_Women_n_coefs['n_children','Estimate'])` years per child (uncertainty interval [`r ndigits(PPMI_Women_n_coefs['n_children','Q2.5'], 2)`, `r ndigits(PPMI_Women_n_coefs['n_children','Q97.5'])`]). This is the slope of the line in the upper-right panel of Figure \@ref(fig:main-figure)B. A Bayes factor of `r ndigits(BF_PPMI_Women$bf)` indicated substantial evidence for an association, compared to the intercept-only model. Similar results were, however, found for the PPMI men, with a slope of `r ndigits(PPMI_Men_n_coefs['n_children','Estimate'])` years per child [`r ndigits(PPMI_Men_n_coefs['n_children','Q2.5'])`, `r ndigits(PPMI_Men_n_coefs['n_children','Q97.5'])`] and a Bayes factor of `r ndigits(BF_PPMI_Men$bf, 0)`. As the relationship was not unique to women, this strongly argues against the underlying cause being pregnancy- or birth-related.
 
 For completeness, we also tested whether women did actually have a later age of disease onset. As indicated in Table \@ref(tab:demog-table), the mean age at diagnosis was actually slightly _earlier_ for women, by `r ndigits(PPMI_sex_coefs['sexWomen','Estimate'])` [`r ndigits(PPMI_sex_coefs['sexWomen','Q2.5'])`, `r ndigits(PPMI_sex_coefs['sexWomen','Q97.5'])`] years, with a posterior probability of only `r scales::percent_format(accuracy = 1)(p_ppmi_women_later_onset)` of a later onset in the population.
 
@@ -929,7 +930,7 @@ The men of the PPMI sample showed a clear association between having more childr
 
 The association between number of children and diagnosis age was not found in either sex in the NZBRI study (bottom row of Figure \@ref(fig:main-figure)B), although the background generational effect (bottom row of Figure \@ref(fig:main-figure)A) was similar to that in the PPMI study. This is consistent, because in a prevalence sample the relationship between patient age and their age of diagnosis becomes de-coupled, because the sample includes many people with long-standing disease. Take, for example, a pair of people, one diagnosed at 50 and another at 75. In an incident study, participants are recruited soon after diagnosis, and such a pair would necessarily come from different generations. In a prevalent sample, however, that relationship breaks down. Both patients could even be the same age: one recently diagnosed at age 75, while the other, also currently aged 75, would have a 25 year history of disease. Artefactual associations between number of children and the age of Parkinson's onset are therefore most likely to be observed in samples with a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (as shown in the roughly one-year-per-child associations in the PPMI sample). The two previous studies defined disease duration from symptom onset, so with durations of 2.5 years [@haaxma2007_GenderDifferencesParkinson] and 5.8 years,[@frentzel2017_IncreaseReproductiveLife] this indeed places them closer to the PPMI incident study (`r ndigits(PPMI_mean_women_sx_duration, 1)` years mean female symptom duration) than to the NZBRI prevalent sample (where the mean duration since diagnosis was `r ndigits(NZBRI_mean_women_dx_duration, 1)` years, implying a much longer time relative to symptom onset).
 
-Lastly, we found that women's age of onset was marginally _earlier_ compared to men. This is not inconsistent with the two previous studies, where the women's age of onset (57.1) was either similar to the men's (57.3),[@frentzel2017_IncreaseReproductiveLife] or non-significantly later (53.4 vs 51.3, p = 0.06).[@haaxma2007_GenderDifferencesParkinson] Remembering that the representative population age will be far older than in studies with actively-participating patients, further analysis of our previously-reported national-level drug-tracing epidemiology study of 10 500 [10 300, 10 700] incident cases of Parkinson's[@pitcher2018_ParkinsonDiseaseEthnicities;@myall2017_ParkinsonOldestOld] found the standardised age of onset for women was again, if anything, minimally earlier (69.8 [69.6, 70.0]) compared to men (70.5 [70.5, 70.6]). That is, not only is the association between childbirth and later disease onset artefactual, but there might not even be a female advantage for it to explain. 
+Lastly, we found that women's age of onset was marginally _earlier_ compared to men. This is not inconsistent with the two previous studies, where the women's age of onset (57.1) was either similar to the men's (57.3),[@frentzel2017_IncreaseReproductiveLife] or non-significantly later (53.4 vs 51.3, p = 0.06).[@haaxma2007_GenderDifferencesParkinson] Remembering that the representative population age will be far older than in studies with actively-participating patients, further analysis of our previously-reported national-level pharmaco-epidemiology study of 10 500 [10 300, 10 700] incident cases of Parkinson's[@pitcher2018_ParkinsonDiseaseEthnicities;@myall2017_ParkinsonOldestOld] found the standardised age of onset for women was again, if anything, minimally earlier (69.8 [69.6, 70.0]) compared to men (70.5 [70.5, 70.6]). That is, not only is the association between childbirth and later disease onset artefactual, but there might not even be a female advantage for it to explain. 
 
 # Acknowledgments
 Some of the data used in the preparation of this article was obtained from the Parkinson's Progression Markers Initiative (PPMI) database (www.ppmi-info.org/data). For up-to-date information on the study, visit www.ppmi-info.org. PPMI – a public-private partnership – is funded by the Michael J. Fox Foundation for Parkinson's Research and funding partners, listed at www.ppmi-info.org/fundingpartners.
