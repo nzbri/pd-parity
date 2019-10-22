@@ -3,18 +3,18 @@ title: "Childbirth and delayed Parkinson’s onset: a reproducible non-biologica
 shorttitle: "Parkinson's and childbirth"
 
 author: 
-  - name          : "MacAskill, M. R."
+  - name          : "Michael R. MacAskill, PhD"
     affiliation   : "1,2"
     corresponding : yes    # Define only one corresponding author
     address       : "66 Stewart St, Christchurch 8011, New Zealand"
     email         : "michael.macaskill@nzbri.org"
-  - name          : "Myall, D. J."
+  - name          : "Daniel J. Myall, PhD"
     affiliation   : "1"
-  - name          : "Shoorangiz, R."
+  - name          : "Reza Shoorangiz, PhD"
     affiliation   : "1"
-  - name          : "Anderson, T. J."
+  - name          : "Tim J. Anderson, MD, FRACP"
     affiliation   : "1,2,3,4"
-  - name          : "Pitcher, T. L."
+  - name          : "Toni L. Pitcher, PhD"
     affiliation   : "1,2,3"
 affiliation:
   - id            : "1"
@@ -706,7 +706,7 @@ The incidence and prevalence of Parkinson’s are substantially lower in women. 
 
 Plausible mechanisms have been proposed for how female sex hormones could play a neuroprotective role in neurodegenerative conditions[@roof2000_GenderDifferencesAcute] and observational human studies have examined whether increased hormone exposure is associated with protection against Parkinson's. Lifetime hormonal exposure has been operationalised using endogenous measures such as fertile life span (the duration between age at menarche and at menopause), or exogenous exposure through oral contraceptives or hormone replacement therapy. Despite some positive findings, [@villa2016_EstrogensNeuroinflammationNeurodegeneration] however, most reviews [@ascherio2016_EpidemiologyParkinsonDisease], large prospective [@simon2009_ReproductiveFactorsExogenous] or case-control [@popat2005_EffectReproductiveFactors] studies, and meta-analyses [@lv2017_ReproductiveFactorsRisk;@du2014_HormoneReplacementTherapy] have shown little support for relationships between any such measures and a lowered risk of Parkinson’s.
 
-Lv _et al.'s_ meta-analysis[@lv2017_ReproductiveFactorsRisk] included an examination of five case-control and three cohort studies of the effect of parity (number of childbirths) upon the risk of women subsequently developing Parkinson’s. This showed no effect, with the relative risk of Parkinson's between the highest and lowest number of births being 0.99 (95% CI: 0.79–1.25). Two studies have, however, independently reported another childbirth-related association not specifically addressed in that meta-analysis: among women diagnosed with Parkinson’s, they found that a history of childbirth was associated with later age of onset [@haaxma2007_GenderDifferencesParkinson; @frentzel2017_IncreaseReproductiveLife]. That is, although having children might not reduce the risk of Parkinson’s _per se,_ it might still slow the pathological process, resulting in later onset. The associations were surprisingly large: Haaxma _et al._ found symptom onset to be later by 2.7 years per childbirth (95% CI: 0.8 – 4.6) [-@haaxma2007_GenderDifferencesParkinson] while Frentzel _et al._ independently found a delay of 2.6 years per birth (95% CI: 0.05 – 5.1). [-@frentzel2017_IncreaseReproductiveLife] In neither study was the effect as linear as these single coefficients might imply, however.
+Lv _et al.'s_ meta-analysis[@lv2017_ReproductiveFactorsRisk] included an examination of five case-control and three cohort studies of the effect of parity (number of childbirths) upon the risk of women subsequently developing Parkinson’s. This showed no effect, with the relative risk of Parkinson's between the highest and lowest number of births being 0.99 (95% CI: 0.79–1.25). Two studies have, however, independently reported another childbirth-related association not specifically addressed in that meta-analysis: among women diagnosed with Parkinson’s, they found that a history of childbirth was associated with later age of onset. [@haaxma2007_GenderDifferencesParkinson; @frentzel2017_IncreaseReproductiveLife] That is, although having children might not reduce the risk of Parkinson’s _per se,_ it might still slow the pathological process, resulting in later onset. The associations were surprisingly large: Haaxma _et al._ found symptom onset to be later by 2.7 years per childbirth (95% CI: 0.8 – 4.6) [-@haaxma2007_GenderDifferencesParkinson] while Frentzel _et al._ independently found a delay of 2.6 years per birth (95% CI: 0.05 – 5.1). [-@frentzel2017_IncreaseReproductiveLife] In neither study was the effect as linear as these single coefficients might imply, however.
 
 A challenge in such observational studies is applying valid control comparisons. Women without Parkinson's lack the disease outcome measures (such as age of onset), while men with Parkinson's lack the predictor hormonal measures. For this specific association between number of children and age of onset, however, men with Parkinson’s are a suitable control to test for non-biological explanations. We proposed that if the relationship is absent in men, it would provide stronger evidence for a protective hormonal effect, specific to women. Conversely, if that relationship does hold for men, it would strongly support the cause being non-biological, and common to both sexes.
 
@@ -719,7 +719,7 @@ A challenge in such observational studies is applying valid control comparisons.
 *NZBRI:* At the New Zealand Brain Research Institute (NZBRI) we conducted two online risk-factor surveys, from which 604 people with idiopathic Parkinson's provided valid data on age at diagnosis and number of biological children (Table \@ref(tab:demog-table)). Cases ranged from recently-diagnosed to those with long-standing disease. Those with dementia had assistance to complete the questions. One survey (`r nrow(dat_canty)` valid cases) recruited from our ongoing longitudinal study of a convenience sample of prevalent cases in the local Canterbury region. The other (`r nrow(dat_national)` valid cases) was nation-wide, recruiting from the membership (excluding Canterbury) of the Parkinson's New Zealand charitable trust. Age at diagnosis was self-reported in the national survey and confirmed from clinical records in the Canterbury survey.
 
 ## Analyses
-Disease onset was defined as the age at which a formal diagnosis of Parkinson's was made, as symptom onset age was not included in the NZBRI national survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_ [@burkner2017_BrmsPackageBayesian]. Parameters were given default weakly-informative priors. Four chains of 4000 iterations each were run.
+Disease onset was defined as the age at which a formal diagnosis of Parkinson's was made, as symptom onset age was not included in the NZBRI national survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_. [@burkner2017_BrmsPackageBayesian] Parameters were given default weakly-informative priors. Four chains of 4000 iterations each were run.
 
 When testing hypotheses of an association between the number of children and age of onset (or year of birth), in each case we compared a model containing the number of children as a predictor to an intercept-only model (i.e. a model of no association). Bayes factors indicated how much more likely it was that incorporating the number of children as a predictor provided a better fit to the data than an intercept-only ("flat-line") model.
 
@@ -926,7 +926,7 @@ ggsave(plot = figure_1,
 
 # Discussion
 
-The men of the PPMI sample showed a clear association between having more children and later disease onset. This is sufficient to discount the proposed hormonal cause for this relationship previously reported in women only [@haaxma2007_GenderDifferencesParkinson;@frentzel2017_IncreaseReproductiveLife]. We tested a non-biological explanation, common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In incident studies like PPMI, there is an almost perfect correlation between patient age and age of diagnosis. Accordingly, the diagnosis-age effect in the PPMI study (top row of Figure \@ref(fig:main-figure)B) almost perfectly resembles the simple background generational cohort effect (top row of Figure \@ref(fig:main-figure)A). The previously reported associations are therefore likely an example of the classic epidemiological trap of mistaking an age effect for a generational cohort one.[@blanchard1977_DistinguishingAgingPeriod]
+The men of the PPMI sample showed a clear association between having more children and later disease onset. This is sufficient to discount the proposed hormonal cause for this relationship previously reported in women only. [@haaxma2007_GenderDifferencesParkinson;@frentzel2017_IncreaseReproductiveLife] We tested a non-biological explanation, common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In incident studies like PPMI, there is an almost perfect correlation between patient age and age of diagnosis. Accordingly, the diagnosis-age effect in the PPMI study (top row of Figure \@ref(fig:main-figure)B) almost perfectly resembles the simple background generational cohort effect (top row of Figure \@ref(fig:main-figure)A). The previously reported associations are therefore likely an example of the classic epidemiological trap of mistaking an age effect for a generational cohort one.[@blanchard1977_DistinguishingAgingPeriod]
 
 The association between number of children and diagnosis age was not found in either sex in the NZBRI study (bottom row of Figure \@ref(fig:main-figure)B), although the background generational effect (bottom row of Figure \@ref(fig:main-figure)A) was similar to that in the PPMI study. This is consistent, because in a prevalence sample the relationship between patient age and their age of diagnosis becomes de-coupled, because the sample includes many people with long-standing disease. Take, for example, a pair of people, one diagnosed at 50 and another at 75. In an incident study, participants are recruited soon after diagnosis, and such a pair would necessarily come from different generations. In a prevalent sample, however, that relationship breaks down. Both patients could even be the same age: one recently diagnosed at age 75, while the other, also currently aged 75, would have a 25 year history of disease. Artefactual associations between number of children and the age of Parkinson's onset are therefore most likely to be observed in samples with a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (as shown in the roughly one-year-per-child associations in the PPMI sample). The two previous studies defined disease duration from symptom onset, so with durations of 2.5 years [@haaxma2007_GenderDifferencesParkinson] and 5.8 years,[@frentzel2017_IncreaseReproductiveLife] this indeed places them closer to the PPMI incident study (`r ndigits(PPMI_mean_women_sx_duration, 1)` years mean female symptom duration) than to the NZBRI prevalent sample (where the mean duration since diagnosis was `r ndigits(NZBRI_mean_women_dx_duration, 1)` years, implying a much longer time relative to symptom onset).
 
@@ -934,6 +934,17 @@ Lastly, we found that women's age of onset was marginally _earlier_ compared to 
 
 # Acknowledgments
 Some of the data used in the preparation of this article was obtained from the Parkinson's Progression Markers Initiative (PPMI) database (www.ppmi-info.org/data). For up-to-date information on the study, visit www.ppmi-info.org. PPMI – a public-private partnership – is funded by the Michael J. Fox Foundation for Parkinson's Research and funding partners, listed at www.ppmi-info.org/fundingpartners.
+
+# Authors' Roles
+MacAskill: Research project: conception. Statistical analysis: design, execution. Manuscript: writing of first draft.
+Myall: Research project: execution. Statistical analysis: design, review. Manuscript: review and critique.
+Shoorangiz: Statistical analysis: design, review. Manuscript: review and critique.
+Anderson: Manuscript: review and critique.
+Pitcher: Research project: conception, execution. Manuscript: review and critique.
+
+# Relevant conflicts of interest/financial disclosures
+Authors report no conflicts of interest. 
+MacAskill, Anderson, and Pitcher are employed by the University of Otago. Myall and Shoorangiz are employed by the New Zealand Brain Research Institute. No other funding was obtained to carry out this specific project. The authors have jointly received funding for other projects in the past 12 months from the Neurological Foundation of New Zealand, New Zealand Brain Research Institute, Canterbury Medical Research Foundation, the University of Otago, and Brain Research New Zealand, Rangahau Roro Aotearoa.
 
 # References
 
