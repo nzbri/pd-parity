@@ -56,6 +56,15 @@ output            : papaja::apa6_word
 ---
 
 ```{r setup, include=FALSE}
+# Check and install papaja package, if not installed. (not in CRAN).
+if (!('papaja' %in% installed.packages()[, "Package"])){
+  # Install devtools package if necessary
+  if(!"devtools" %in% rownames(installed.packages())) install.packages("devtools")
+  
+  # Install the stable development verions from GitHub
+  devtools::install_github("crsh/papaja")
+}
+
 library(papaja)
 
 knitr::opts_chunk$set(
@@ -517,7 +526,7 @@ if (RECALCULATE_MODELS) {
     # for assessing sex group differences in mean onset age,
     model = brm(data = dat %>% filter(study == study_name), 
                 diagnosis_age ~ sex, save_all_pars = TRUE,
-                iter = N_ITERATIONS)
+                iter = N_ITERATIONS, sample_prior = TRUE)
     saveRDS(model, paste0('models/brm_', study_name, '_dxage', '_sex.rds'))
     
     # for looking at relationship with n_children within each sex:
@@ -527,7 +536,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ 1, save_all_pars = TRUE,
-                  iter = N_ITERATIONS)
+                  iter = N_ITERATIONS, sample_prior = TRUE)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
       
@@ -535,7 +544,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ n_children, save_all_pars = TRUE,
-                  iter = N_ITERATIONS)
+                  iter = N_ITERATIONS, sample_prior = TRUE)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_n.rds'))
       
@@ -544,7 +553,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ 1, save_all_pars = TRUE,
-                  iter = N_ITERATIONS)
+                  iter = N_ITERATIONS, sample_prior = TRUE)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
       
@@ -552,7 +561,7 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ n_children, save_all_pars = TRUE,
-                  iter = N_ITERATIONS)
+                  iter = N_ITERATIONS, sample_prior = TRUE)
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
     }
@@ -647,6 +656,13 @@ PPMI_Women_n_coefs_birth = fixef(brm_PPMI_birthyear_Women_n)
 
 NZBRI_Men_n_coefs_birth = fixef(brm_NZBRI_birthyear_Men_n)
 NZBRI_Women_n_coefs_birth = fixef(brm_NZBRI_birthyear_Women_n)
+
+# prior_summary(brm_PPMI_birthyear_Men_n) # To get the prior distributions. The default is a 
+# weakly informative prior, i.e., a student's t with 3 degrees of freedom, scale of 10, and mean of variable mean.
+
+# If the sample_prior is set to TRUE at the time of model fitting, we can gather prior samples and 
+# visualize the prior distributions by
+# bayesplot::mcmc_dens(prior_samples(brm_PPMI_birthyear_Men_n))
 
 ```
 
