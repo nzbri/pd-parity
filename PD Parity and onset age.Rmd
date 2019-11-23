@@ -520,23 +520,34 @@ dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>%
 # decide whether to fit models from scratch, or save execution time by re-loading
 # models saved to disk previously.
 if (RECALCULATE_MODELS) { 
+  student_t_prior = function(centre){
+    df = 3
+    scale = 10
+    return(c(prior_string(paste0('student_t(', df, ', ', centre, ', ', scale, ')'), class = 'Intercept'),
+      prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'sigma')))
+  }
   # fit the models from scratch and save them to disk:
   for (study_name in c('PPMI', 'NZBRI')) {
     
     # for assessing sex group differences in mean onset age,
+    med_diagnosis_age = median((dat %>% filter(study == study_name))$diagnosis_age)
     model = brm(data = dat %>% filter(study == study_name), 
                 diagnosis_age ~ sex, save_all_pars = TRUE,
-                iter = N_ITERATIONS, sample_prior = TRUE)
+                iter = N_ITERATIONS, sample_prior = TRUE,
+                prior = student_t_prior(round(med_diagnosis_age)))
+    
     saveRDS(model, paste0('models/brm_', study_name, '_dxage', '_sex.rds'))
     
     # for looking at relationship with n_children within each sex:
     for (sex_level in c('Men', 'Women')) {
       #### The diagnosis-age associations            ###
       # first need an intercept-only model for each sex:
+      med_diagnosis_age = median((dat %>% filter(study == study_name, sex == sex_level))$diagnosis_age)
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ 1, save_all_pars = TRUE,
-                  iter = N_ITERATIONS, sample_prior = TRUE)
+                  iter = N_ITERATIONS, sample_prior = TRUE,
+                  prior = student_t_prior(round(med_diagnosis_age)))
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
       
@@ -544,16 +555,19 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ n_children, save_all_pars = TRUE,
-                  iter = N_ITERATIONS, sample_prior = TRUE)
+                  iter = N_ITERATIONS, sample_prior = TRUE,
+                  prior = student_t_prior(round(med_diagnosis_age)))
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_n.rds'))
       
       #### The birth-year cohort effects            ###
       # first need an intercept-only model for each sex:
+      med_birth_year = median((dat %>% filter(study == study_name, sex == sex_level))$birth_year)
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ 1, save_all_pars = TRUE,
-                  iter = N_ITERATIONS, sample_prior = TRUE)
+                  iter = N_ITERATIONS, sample_prior = TRUE,
+                  prior = student_t_prior(round(med_birth_year)))
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
       
@@ -561,7 +575,8 @@ if (RECALCULATE_MODELS) {
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ n_children, save_all_pars = TRUE,
-                  iter = N_ITERATIONS, sample_prior = TRUE)
+                  iter = N_ITERATIONS, sample_prior = TRUE,
+                  prior = student_t_prior(round(med_birth_year)))
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
     }
