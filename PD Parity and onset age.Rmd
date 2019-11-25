@@ -87,7 +87,7 @@ options(mc.cores = parallel::detectCores())
 # reading previously-fit models that have been saved to disk. THESE MODELS
 # ARE NOT NECESSARILY PLATFORM-AGNOSTIC, SO THEY MAY NEED TO BE RECALCULATED 
 # THE FIRST TIME THIS SCRIPT IS RUN ON A NEW COMPUTER:
-RECALCULATE_MODELS = FALSE
+RECALCULATE_MODELS = TRUE
 ###########################################################################
 
 ###########################################################################
@@ -520,12 +520,21 @@ dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>%
 # decide whether to fit models from scratch, or save execution time by re-loading
 # models saved to disk previously.
 if (RECALCULATE_MODELS) { 
-  student_t_prior = function(centre){
+  student_t_prior_int = function(centre){
     df = 3
     scale = 10
     return(c(prior_string(paste0('student_t(', df, ', ', centre, ', ', scale, ')'), class = 'Intercept'),
       prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'sigma')))
   }
+  
+  student_t_prior = function(centre){
+    df = 3
+    scale = 10
+    return(c(prior_string(paste0('student_t(', df, ', ', centre, ', ', scale, ')'), class = 'Intercept'),
+      prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'sigma'),
+      prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'b')))
+  }
+  
   # fit the models from scratch and save them to disk:
   for (study_name in c('PPMI', 'NZBRI')) {
     
@@ -547,7 +556,7 @@ if (RECALCULATE_MODELS) {
                                         sex == sex_level), 
                   diagnosis_age ~ 1, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
-                  prior = student_t_prior(round(med_diagnosis_age)))
+                  prior = student_t_prior_int(round(med_diagnosis_age)))
       saveRDS(model, 
               paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
       
@@ -567,7 +576,7 @@ if (RECALCULATE_MODELS) {
                                         sex == sex_level), 
                   birth_year ~ 1, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
-                  prior = student_t_prior(round(med_birth_year)))
+                  prior = student_t_prior_int(round(med_birth_year)))
       saveRDS(model, 
               paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
       
