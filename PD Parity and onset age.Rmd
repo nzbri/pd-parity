@@ -129,6 +129,7 @@ library(janitor)    # clean column names
 library(brms)       # bayesian modelling
 library(ggeffects)  # for visualising model predictions
 library(cowplot)    # construct multi-panel figures
+library(lme4)       # required by get_brms_formula
 
 if (!USE_CACHED_CANTERBURY_DATA) {
   library(chchpd)   # NZBRI package to access study data
