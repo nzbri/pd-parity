@@ -56,14 +56,15 @@ output            : papaja::apa6_word
 ---
 
 ```{r setup, include=FALSE}
-# Check and install papaja package, if not installed. (not in CRAN).
-if (!('papaja' %in% installed.packages()[, "Package"])){
-  # Install devtools package if necessary
-  if(!"devtools" %in% rownames(installed.packages())) install.packages("devtools")
-  
-  # Install the stable development verions from GitHub
-  devtools::install_github("crsh/papaja")
-}
+
+###########################################################################
+# papaja is not available in CRAN
+# Need to install from GitHub (https://github.com/crsh/papaja) using detools:
+#
+# install.packages("devtools")
+# library(devtools)
+# devtools::install_github("crsh/papaja")
+###########################################################################
 
 library(papaja)
 
@@ -520,6 +521,13 @@ dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>%
 # decide whether to fit models from scratch, or save execution time by re-loading
 # models saved to disk previously.
 if (RECALCULATE_MODELS) { 
+  
+  ########
+  # Define priors
+  # Use weakly-informative priors
+  # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+  ########
+  
   student_t_prior_int = function(centre){
     df = 3
     scale = 10
