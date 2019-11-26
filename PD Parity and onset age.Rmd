@@ -56,16 +56,13 @@ output            : papaja::apa6_word
 ---
 
 ```{r setup, include=FALSE}
-
 ###########################################################################
-# papaja is not available in CRAN
-# Need to install from GitHub (https://github.com/crsh/papaja) using detools:
+# The papaja package is used to format the resulting manuscript.
+# It is not currently available on CRAN, so install from GitHub using devtools:
 #
-# install.packages("devtools")
-# library(devtools)
-# devtools::install_github("crsh/papaja")
+# install.packages('devtools')
+# devtools::install_github('crsh/papaja')
 ###########################################################################
-
 library(papaja)
 
 knitr::opts_chunk$set(
@@ -103,7 +100,7 @@ USE_CACHED_CANTERBURY_DATA = TRUE
 
 ###########################################################################
 # The NZ national data required a lot of tidying. For convenience, one can 
-# instead import the processed file So after the data sources were matched, 
+# instead import the processed file. So after the data sources were matched, 
 # we saved them to a cached .csv file on disk and use that thereafter.
 # This setting should be TRUE for people using the publicly-available
 # distribution, as only this tidied and anonymised data is included:
@@ -135,6 +132,7 @@ library(magrittr)   # for %<>%
 library(knitr)      # for kable() function to format tables
 library(kableExtra) # additional table formatting options
 library(lubridate)  # manipulate dates
+library(glue)       # construct formatted strings (neater than paste)
 library(janitor)    # clean column names
 library(brms)       # bayesian modelling
 library(ggeffects)  # for visualising model predictions
@@ -518,8 +516,8 @@ dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>%
 ```
 
 ```{r fit-or-load-models, echo=FALSE, message=FALSE, warning=FALSE}
-# decide whether to fit models from scratch, or save execution time by re-loading
-# models saved to disk previously.
+# decide whether to fit models from scratch, or save execution time by reloading
+# models saved to disk previously:
 if (RECALCULATE_MODELS) { 
   
   ########
@@ -528,45 +526,58 @@ if (RECALCULATE_MODELS) {
   # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
   ########
   
-  student_t_prior_int = function(centre){
+  student_t_prior_int <- function(centre){
     df = 3
     scale = 10
-    return(c(prior_string(paste0('student_t(', df, ', ', centre, ', ', scale, ')'), class = 'Intercept'),
-      prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'sigma')))
+    return(c(prior_string(glue('student_t({df}, {centre}, {scale})'), 
+                          class = 'Intercept'),
+             prior_string(glue('student_t({df}, 0, {scale})'), 
+                          class = 'sigma')))
   }
   
-  student_t_prior = function(centre){
+  student_t_prior <- function(centre){
     df = 3
     scale = 10
-    return(c(prior_string(paste0('student_t(', df, ', ', centre, ', ', scale, ')'), class = 'Intercept'),
-      prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'sigma'),
-      prior_string(paste0('student_t(', df, ', 0, ', scale, ')'), class = 'b')))
+    return(c(prior_string(glue('student_t({df}, {centre}, {scale})'), 
+                          class = 'Intercept'),
+             prior_string(glue('student_t({df}, 0, {scale})'), 
+                          class = 'sigma'),
+             prior_string(glue('student_t({df}, 0, {scale})'), 
+                          class = 'b')))
   }
   
   # fit the models from scratch and save them to disk:
   for (study_name in c('PPMI', 'NZBRI')) {
     
-    # for assessing sex group differences in mean onset age,
-    med_diagnosis_age = median((dat %>% filter(study == study_name))$diagnosis_age)
+    med_diagnosis_age = dat %>% # needed for setting the prior
+      filter(study == study_name) %>% 
+      summarise(diagnosis_age = median(diagnosis_age)) %>% 
+      pull() # extract as a scalar value
+    
+    # model for assessing sex group differences in mean onset age:
     model = brm(data = dat %>% filter(study == study_name), 
                 diagnosis_age ~ sex, save_all_pars = TRUE,
                 iter = N_ITERATIONS, sample_prior = TRUE,
                 prior = student_t_prior(round(med_diagnosis_age)))
     
-    saveRDS(model, paste0('models/brm_', study_name, '_dxage', '_sex.rds'))
-    
-    # for looking at relationship with n_children within each sex:
+    saveRDS(model, glue('models/brm_{study_name}_dxage_sex.rds'))
+
+    # models for looking at relationship with n_children within each sex:
     for (sex_level in c('Men', 'Women')) {
+      
+      med_diagnosis_age = dat %>% # needed for setting the prior
+        filter(study == study_name, sex == sex_level) %>% 
+        summarise(diagnosis_age = median(diagnosis_age)) %>% 
+        pull() # extract as a scalar value
+    
       #### The diagnosis-age associations            ###
       # first need an intercept-only model for each sex:
-      med_diagnosis_age = median((dat %>% filter(study == study_name, sex == sex_level))$diagnosis_age)
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   diagnosis_age ~ 1, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
                   prior = student_t_prior_int(round(med_diagnosis_age)))
-      saveRDS(model, 
-              paste0('models/brm_', study_name, '_dxage_', sex_level, '_int.rds'))
+      saveRDS(model, glue('models/brm_{study_name}_dxage_{sex_level}_int.rds'))
       
       # then compare that to a model as a function of n_children:
       model = brm(data = dat %>% filter(study == study_name,
@@ -574,19 +585,22 @@ if (RECALCULATE_MODELS) {
                   diagnosis_age ~ n_children, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
                   prior = student_t_prior(round(med_diagnosis_age)))
-      saveRDS(model, 
-              paste0('models/brm_', study_name, '_dxage_', sex_level, '_n.rds'))
+      saveRDS(model, glue('models/brm_{study_name}_dxage_{sex_level}_n.rds'))
+      
+      med_birth_year = dat %>% # needed for setting the prior
+        filter(study == study_name, sex == sex_level) %>% 
+        summarise(birth_year = median(birth_year)) %>% 
+        pull() # extract as a scalar value
       
       #### The birth-year cohort effects            ###
       # first need an intercept-only model for each sex:
-      med_birth_year = median((dat %>% filter(study == study_name, sex == sex_level))$birth_year)
       model = brm(data = dat %>% filter(study == study_name,
                                         sex == sex_level), 
                   birth_year ~ 1, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
                   prior = student_t_prior_int(round(med_birth_year)))
-      saveRDS(model, 
-              paste0('models/brm_', study_name, '_birthyear_', sex_level, '_int.rds'))
+      saveRDS(model,
+              glue('models/brm_{study_name}_birthyear_{sex_level}_int.rds'))
       
       # then compare that to a model as a function of n_children:
       model = brm(data = dat %>% filter(study == study_name,
@@ -595,7 +609,7 @@ if (RECALCULATE_MODELS) {
                   iter = N_ITERATIONS, sample_prior = TRUE,
                   prior = student_t_prior(round(med_birth_year)))
       saveRDS(model, 
-              paste0('models/brm_', study_name, '_birthyear_', sex_level, '_n.rds'))
+              glue('models/brm_{study_name}_birthyear_{sex_level}_n.rds'))
     }
     
   }
@@ -607,10 +621,10 @@ for (study_name in c('PPMI', 'NZBRI')) {
   
   # first the dxage models:
   for (model_vars in c('sex', 'Men_int', 'Women_int', 'Men_n', 'Women_n')) {
-    model_name = paste('brm', study_name, 'dxage', model_vars, sep = '_')
+    model_name = glue('brm_{study_name}_dxage_{model_vars}')
     
     # read its saved representation from disk:
-    model = readRDS(paste0('models/', model_name, '.rds'))
+    model = readRDS(glue('models/{model_name}.rds'))
     
     # assign to a variable with the associated name:
     assign(model_name, model)
@@ -619,8 +633,7 @@ for (study_name in c('PPMI', 'NZBRI')) {
     # for depicting the models graphically, supplementing the raw data:
     if (str_ends(model_name, '_n')) {
       sex = str_sub(model_vars, start = 1, end = -3)
-      prediction_name = paste('ggpredict', study_name, 'dxage', 
-                              model_vars, sep = '_')
+      prediction_name = glue('ggpredict_{study_name}_dxage_{model_vars}')
       prediction = ggpredict(model, terms = ~ n_children) %>%
         rename(n_children = x, diagnosis_age = predicted) %>% 
         mutate(sex = sex, study = study_name)
@@ -630,10 +643,10 @@ for (study_name in c('PPMI', 'NZBRI')) {
   
   # then the birthyear ones
   for (model_vars in c('Men_int', 'Women_int', 'Men_n', 'Women_n')) {
-    model_name = paste('brm', study_name, 'birthyear', model_vars, sep = '_')
+    model_name = glue('brm_{study_name}_birthyear_{model_vars}')
     
     # read its saved representation from disk:
-    model = readRDS(paste0('models/', model_name, '.rds'))
+    model = readRDS(glue('models/{model_name}.rds'))
     
     # assign to a variable with the associated name:
     assign(model_name, model)
@@ -641,8 +654,7 @@ for (study_name in c('PPMI', 'NZBRI')) {
     # predict to get confidence intervals for graphing the fixed effects:
     if (str_ends(model_name, '_n')) {
       sex = str_sub(model_vars, start = 1, end = -3)
-      prediction_name = paste('ggpredict', study_name, 'birthyear', 
-                              model_vars, sep = '_')
+      prediction_name = glue('ggpredict_{study_name}_birthyear_{model_vars}')
       prediction = ggpredict(model, terms = ~ n_children) %>%
         rename(n_children = x, birth_year = predicted) %>% 
         mutate(sex = sex, study = study_name)
@@ -672,7 +684,6 @@ remove(list = ls(pattern = 'ggpredict_'))
 ```
 
 ```{r extract-coefficients}
-
 # the diagnosis age model coefficients:
 PPMI_sex_coefs = fixef(brm_PPMI_dxage_sex)
 PPMI_Men_n_coefs = fixef(brm_PPMI_dxage_Men_n)
@@ -688,13 +699,18 @@ PPMI_Women_n_coefs_birth = fixef(brm_PPMI_birthyear_Women_n)
 
 NZBRI_Men_n_coefs_birth = fixef(brm_NZBRI_birthyear_Men_n)
 NZBRI_Women_n_coefs_birth = fixef(brm_NZBRI_birthyear_Women_n)
+```
 
-# prior_summary(brm_PPMI_birthyear_Men_n) # To get the prior distributions. The default is a 
-# weakly informative prior, i.e., a student's t with 3 degrees of freedom, scale of 10, and mean of variable mean.
 
-# If the sample_prior is set to TRUE at the time of model fitting, we can gather prior samples and 
-# visualize the prior distributions by
-# bayesplot::mcmc_dens(prior_samples(brm_PPMI_birthyear_Men_n))
+```{r show_priors_example, eval=FALSE, include=FALSE}
+# To get the prior distributions. The default is a weakly informative prior, 
+# i.e., a Student's t with 3 degrees of freedom, scale of 10, and mean of 
+# variable mean.
+prior_summary(brm_PPMI_birthyear_Men_n) 
+
+# If the sample_prior is set to TRUE at the time of model fitting, we can gather
+# prior samples and visualise the prior distributions by:
+bayesplot::mcmc_dens(prior_samples(brm_PPMI_birthyear_Men_n))
 
 ```
 
@@ -703,8 +719,10 @@ NZBRI_Women_n_coefs_birth = fixef(brm_NZBRI_birthyear_Women_n)
 # what is the probability that women actually have a later age of onset than men?
 # can answer this by testing the specific hypothesis that their onset age difference is actually
 # greater than zero:
-p_ppmi_women_later_onset  = brms::hypothesis(brm_PPMI_dxage_sex, 'sexWomen > 0')$hypothesis$Post.Prob
-p_nzbri_women_later_onset = brms::hypothesis(brm_NZBRI_dxage_sex, 'sexWomen > 0')$hypothesis$Post.Prob
+p_ppmi_women_later_onset  = 
+  brms::hypothesis(brm_PPMI_dxage_sex, 'sexWomen > 0')$hypothesis$Post.Prob
+p_nzbri_women_later_onset = 
+  brms::hypothesis(brm_NZBRI_dxage_sex, 'sexWomen > 0')$hypothesis$Post.Prob
 
 # a more verbose way of saying the same thing:
 #p_ppmi_women_later_onset = brms::hypothesis(brm_PPMI_sex, "Intercept + sexWomen > Intercept")$hypothesis$Post.Prob
