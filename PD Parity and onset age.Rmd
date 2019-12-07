@@ -85,7 +85,7 @@ options(mc.cores = parallel::detectCores())
 # reading previously-fit models that have been saved to disk. THESE MODELS
 # ARE NOT NECESSARILY PLATFORM-AGNOSTIC, SO THEY MAY NEED TO BE RECALCULATED 
 # THE FIRST TIME THIS SCRIPT IS RUN ON A NEW COMPUTER:
-RECALCULATE_MODELS = TRUE
+RECALCULATE_MODELS = FALSE
 ###########################################################################
 
 ###########################################################################
@@ -148,7 +148,8 @@ if (!USE_CACHED_CANTERBURY_DATA) {
 
 ```{r define-variables}
 # how many iterations to use in the model fitting:
-N_ITERATIONS = 4000
+# For Bayes factors require 10x usual amount than parameter estimation
+N_ITERATIONS = 20000
 
 # specify manual colour scheme:
 two_colours = c('#D55E00', '#0072B2')
@@ -523,27 +524,46 @@ if (RECALCULATE_MODELS) {
   
   ########
   # Define priors
-  # Use weakly-informative priors
   # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
+  #
+  # Use weakly-informative priors for Intercept and standard deviation
+  # Student-t distribution, df = 3, mean = 0, sd = 10
+  # Matches the defaults for brms
+  #
+  # For Bayes Factors need proper priors on non-common parameter between model
+  # By default brms has improper priors on regression coefficients
+  # 
+  # Use informative prior for effect of number of children based upon three
+  # previous studies
+  #
+  # older age == earlier year thus reversal of sign for effect
+  # For age: Normal distribution with mean = 2.5, sd = 2
+  # For year: Normal distribution with mean = -2.5, sd = 2
   ########
   
-  student_t_prior_int <- function(centre){
+  nchildren_onset_age_effect_prior_mean = 2.5
+  nchildren_birth_year_effect_prior_mean = -2.5  
+  
+  intercept_only_prior <- function(int_centre){
     df = 3
-    scale = 10
-    return(c(prior_string(glue('student_t({df}, {centre}, {scale})'), 
+    int_scale = 10
+    var_scale = 10
+    return(c(prior_string(glue('student_t({df}, {int_centre}, {int_scale})'), 
                           class = 'Intercept'),
-             prior_string(glue('student_t({df}, 0, {scale})'), 
+             prior_string(glue('student_t({df}, 0, {var_scale})'), 
                           class = 'sigma')))
   }
   
-  student_t_prior <- function(centre){
+  nchildren_effect_prior <- function(int_centre,b_centre){
     df = 3
-    scale = 10
-    return(c(prior_string(glue('student_t({df}, {centre}, {scale})'), 
+    int_scale = 10
+    var_scale = 10
+    b_scale = 2
+    return(c(prior_string(glue('student_t({df}, {int_centre}, {int_scale})'), 
                           class = 'Intercept'),
-             prior_string(glue('student_t({df}, 0, {scale})'), 
+             prior_string(glue('student_t({df}, 0, {var_scale})'), 
                           class = 'sigma'),
-             prior_string(glue('student_t({df}, 0, {scale})'), 
+             prior_string(glue('normal({b_centre}, {b_scale})'), 
                           class = 'b')))
   }
   
@@ -559,7 +579,8 @@ if (RECALCULATE_MODELS) {
     model = brm(data = dat %>% filter(study == study_name), 
                 diagnosis_age ~ sex, save_all_pars = TRUE,
                 iter = N_ITERATIONS, sample_prior = TRUE,
-                prior = student_t_prior(round(med_diagnosis_age)))
+                prior = nchildren_effect_prior(round(med_diagnosis_age),
+                                               nchildren_onset_age_effect_prior_mean))
     
     saveRDS(model, glue('models/brm_{study_name}_dxage_sex.rds'))
 
@@ -577,7 +598,7 @@ if (RECALCULATE_MODELS) {
                                         sex == sex_level), 
                   diagnosis_age ~ 1, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
-                  prior = student_t_prior_int(round(med_diagnosis_age)))
+                  prior = intercept_only_prior(round(med_diagnosis_age)))
       saveRDS(model, glue('models/brm_{study_name}_dxage_{sex_level}_int.rds'))
       
       # then compare that to a model as a function of n_children:
@@ -585,7 +606,8 @@ if (RECALCULATE_MODELS) {
                                         sex == sex_level), 
                   diagnosis_age ~ n_children, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
-                  prior = student_t_prior(round(med_diagnosis_age)))
+                  prior = nchildren_effect_prior(round(med_diagnosis_age),
+                                                 nchildren_onset_age_effect_prior_mean))
       saveRDS(model, glue('models/brm_{study_name}_dxage_{sex_level}_n.rds'))
       
       med_birth_year = dat %>% # needed for setting the prior
@@ -599,7 +621,7 @@ if (RECALCULATE_MODELS) {
                                         sex == sex_level), 
                   birth_year ~ 1, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
-                  prior = student_t_prior_int(round(med_birth_year)))
+                  prior = intercept_only_prior(round(med_birth_year)))
       saveRDS(model,
               glue('models/brm_{study_name}_birthyear_{sex_level}_int.rds'))
       
@@ -608,7 +630,8 @@ if (RECALCULATE_MODELS) {
                                         sex == sex_level), 
                   birth_year ~ n_children, save_all_pars = TRUE,
                   iter = N_ITERATIONS, sample_prior = TRUE,
-                  prior = student_t_prior(round(med_birth_year)))
+                  prior = nchildren_effect_prior(round(med_birth_year),
+                                                 nchildren_birth_year_effect_prior_mean))
       saveRDS(model, 
               glue('models/brm_{study_name}_birthyear_{sex_level}_n.rds'))
     }
