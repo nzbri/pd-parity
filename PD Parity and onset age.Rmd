@@ -85,7 +85,7 @@ options(mc.cores = parallel::detectCores())
 # reading previously-fit models that have been saved to disk. THESE MODELS
 # ARE NOT NECESSARILY PLATFORM-AGNOSTIC, SO THEY MAY NEED TO BE RECALCULATED 
 # THE FIRST TIME THIS SCRIPT IS RUN ON A NEW COMPUTER:
-RECALCULATE_MODELS = FALSE
+RECALCULATE_MODELS = TRUE
 ###########################################################################
 
 ###########################################################################
