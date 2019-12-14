@@ -85,7 +85,7 @@ options(mc.cores = parallel::detectCores())
 # reading previously-fit models that have been saved to disk. THESE MODELS
 # ARE NOT NECESSARILY PLATFORM-AGNOSTIC, SO THEY MAY NEED TO BE RECALCULATED 
 # THE FIRST TIME THIS SCRIPT IS RUN ON A NEW COMPUTER:
-RECALCULATE_MODELS = FALSE
+RECALCULATE_MODELS = TRUE
 ###########################################################################
 
 ###########################################################################
@@ -147,8 +147,8 @@ if (!USE_CACHED_CANTERBURY_DATA) {
 
 
 ```{r define-variables}
-# how many iterations to use in the model fitting:
-# For Bayes factors require 10x usual amount than parameter estimation
+# how many iterations to use in the model fitting.
+# For Bayes factors require 10 × usual amount, compared to parameter estimation:
 N_ITERATIONS = 20000
 
 # specify manual colour scheme:
@@ -526,17 +526,19 @@ if (RECALCULATE_MODELS) {
   # Define priors
   # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
   #
-  # Use weakly-informative priors for Intercept and standard deviation
+  # Use weakly-informative priors for intercept and standard deviation
   # Student-t distribution, df = 3, mean = 0, sd = 10
   # Matches the defaults for brms
   #
   # For Bayes Factors need proper priors on non-common parameter between model
   # By default brms has improper priors on regression coefficients
   # 
-  # Use informative prior for effect of number of children based upon three
-  # previous studies
+  # We use informative prior for effect of number of children, based upon three
+  # previous studies cited in the paper: Haaxma et al. (2007), Yadav et al. 
+  # (2012), and Frentzel (2017).
   #
-  # older age == earlier year thus reversal of sign for effect
+  # Older age == earlier birth year, thus reversal of sign for effect:
+  # 
   # For age: Normal distribution with mean = 2.5, sd = 2
   # For year: Normal distribution with mean = -2.5, sd = 2
   ########
