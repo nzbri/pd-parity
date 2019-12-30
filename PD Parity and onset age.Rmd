@@ -808,7 +808,7 @@ A challenge in such observational studies is applying valid control comparisons.
 
 *PPMI:* We accessed the openly-available Parkinson’s Progressive Marker Initiative dataset. PPMI is a study of incident cases, with a mean 7 months between diagnosis and recruitment (see Table \@ref(tab:demog-table)). Valid data on number of children was available from 421 of the study's 423 idiopathic Parkinson's cases.
 
-*NZBRI:* At the New Zealand Brain Research Institute we used data from two of our previously-conducted online risk-factor surveys, from which 604 people with idiopathic Parkinson's provided valid responses on their age at diagnosis and number of biological children (Table \@ref(tab:demog-table)). Cases ranged from recently-diagnosed to those with long-standing disease. Respondents with dementia had assistance to complete the questions. One survey (`r nrow(dat_canty)` valid cases) recruited from our ongoing longitudinal study of a convenience sample of prevalent cases in the local Canterbury region. The other (`r nrow(dat_national)` valid cases) was nation-wide, recruiting from the membership (excluding Canterbury) of the Parkinson's New Zealand charitable trust. Age at diagnosis was self-reported in the national survey and confirmed from clinical records in the Canterbury survey. Canterbury respondents had diagnosis confirmed by a neurologist. The remainder would have required a diagnosis in order to receive care from Parkinson's New Zealand, which might have been made by a neurologist, other specialist, or general practitioner.
+*NZBRI:* At the New Zealand Brain Research Institute we used data from two of our previously-conducted risk-factor surveys, from which 604 people with idiopathic Parkinson's provided valid responses on their age at diagnosis and number of biological children (Table \@ref(tab:demog-table)). Cases ranged from recently-diagnosed to those with long-standing disease. Responses were mostly collected online, with some submitted via paper forms or verbally by telephone. Respondents with dementia had assistance to complete the questions. One survey (`r nrow(dat_canty)` valid cases) recruited from our ongoing longitudinal study of a convenience sample of prevalent cases in the local Canterbury region. The other (`r nrow(dat_national)` valid cases) was nation-wide, recruiting from the membership (excluding Canterbury) of the Parkinson's New Zealand charitable trust. Age at diagnosis was self-reported in the national survey and confirmed from clinical records in the Canterbury survey. Canterbury respondents had diagnosis confirmed by a neurologist. The remainder would have required a diagnosis in order to receive care from Parkinson's New Zealand, which might have been made by a neurologist, other specialist, or general practitioner.
 
 ## Analyses
 Disease onset was defined as the age at which a formal diagnosis of Parkinson's was made, as symptom onset age was not included in the NZBRI national survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_. [@burkner2017_BrmsPackageBayesian] Parameters were given default weakly-informative priors. Four chains of 4000 iterations each were run.
@@ -1045,7 +1045,7 @@ dat %>%
   #filter(study == 'NZBRI') %>% 
   ggplot(aes(x = birth_year + diagnosis_age, y = diagnosis_age)) + 
   facet_grid(. ~ study) +
-  geom_point() +
+  geom_point(alpha = 0.5) +
   geom_smooth()
 ```
 
