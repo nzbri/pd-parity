@@ -534,6 +534,9 @@ if (RECALCULATE_MODELS) {
   # scale = 10 with rejecting sampling on the prior to ensure greater or equal to 0
   # Matches the defaults for brms
   #
+  # Probability density function definition for the Student-t distribution:
+  # https://mc-stan.org/docs/2_22/functions-reference/student-t-distribution.html
+  #
   # To transform scale of Student-t to standard deviation:
   # https://jrnold.github.io/bugs-examples-in-stan/resistant.html
   # \sigma^{*} &amp;\sim \mathsf{HalfCauchy}{(0, 5)} \\
