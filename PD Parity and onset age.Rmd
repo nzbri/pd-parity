@@ -1049,30 +1049,49 @@ MacAskill, Anderson, and Pitcher are employed by the University of Otago. Myall 
 
 # References
 
-```{r review-figure}
+```{r review-figures}
 # produced to answer a reviewer query: not included in the manuscript itself.
 # The question was whether diagnosis age was rising over time, which is not a 
 # question that can be answered by either of these datasets (diagnosis occurred 
 # only over a very narrow window for PPMI, and for NZBRI, the diagnosis window 
 # spans decades, but a massive survivorship bias is in effect, meaning that the 
-# apparent increase in diagnosis age over time is (not a real e)at least mostly)
-# artefactual: 
-review_figure = dat %>% 
+# apparent increase in diagnosis age over time is (at least mostly) artefactual: 
+review_01_figure = dat %>% 
   ggplot(aes(x = birth_year + diagnosis_age, y = diagnosis_age)) + 
   facet_grid(. ~ study) +
-  geom_point(alpha = 0.5, shape = 16) +
+  geom_point(alpha = 0.5, shape = 16, size = 0.5) +
   geom_smooth(method = 'lm', colour = 'red') +
   ylab('Age at diagnosis\n') + 
-  xlab('\nTime (year of birth + age at diagnosis)') +
+  xlab('\nYear of diagnosis') +
   theme_bw(base_family = 'Gill Sans') +
   xlim(c(1979, 2020)) +
   theme(axis.ticks = element_line(colour = 'lightgrey'),
         panel.border = element_rect(colour = 'lightgrey', size = 0.5),
         panel.grid.minor = element_blank(),
-        strip.background = element_rect(colour = 'lightgrey', fill = 'lightgrey'))
+        strip.background = element_rect(colour = 'lightgrey', 
+                                        fill = 'lightgrey'))
 
-ggsave(plot = review_figure, 
-       filename = 'figures/Reviewer figure.png', width = 17, height = 9.7, 
+ggsave(plot = review_01_figure, 
+       filename = 'figures/Review_01_figure.png', width = 17, height = 9.7, 
+       units = 'cm', dpi = 600, type = 'cairo')
+
+review_02_figure = dat %>% 
+  ggplot(aes(x = birth_year, y = diagnosis_age)) + 
+  facet_grid(. ~ study) +
+  geom_point(alpha = 0.5, shape = 16, size = 0.5) +
+  geom_smooth(method = 'lm', colour = 'red') +
+  ylab('Age at diagnosis\n') + 
+  xlab('\nYear of birth') +
+  theme_bw(base_family = 'Gill Sans') +
+  #xlim(c(1979, 2020)) +
+  theme(axis.ticks = element_line(colour = 'lightgrey'),
+        panel.border = element_rect(colour = 'lightgrey', size = 0.5),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(colour = 'lightgrey', 
+                                        fill = 'lightgrey'))
+
+ggsave(plot = review_02_figure, 
+       filename = 'figures/Review_02_figure.png', width = 17, height = 9.7, 
        units = 'cm', dpi = 600, type = 'cairo')
 ```
 
