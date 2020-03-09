@@ -165,10 +165,10 @@ ndigits <- function(number, digits = 1){
 ```{r import-nz-canterbury-data}
 if (USE_CACHED_CANTERBURY_DATA) {
   
-  # read from the previously merged and stored data set:
+  # read from the previously merged and processed data set:
   dat_canty = read_csv('data/anonymised/nz_canterbury_data.csv')
   
-} else # merge various data sources
+} else # see what was required to merge & clean the various data sources:
 {
   # data collected by Toni Pitcher via an online survey of NZBRI participants 
   # in 2014-15 and with new cases from 2018 appended:
@@ -260,10 +260,10 @@ if (USE_CACHED_CANTERBURY_DATA) {
 
 if (USE_CACHED_NATIONAL_DATA) {
   
-  # read from the previously merged and stored data set:
+  # read from the previously merged and processed data set:
   dat_national = read_csv('data/anonymised/nz_national_data.csv')
   
-} else # tidy and process the raw survey responses
+} else # this was done to tidy and process the raw survey responses:
 {
   # data collected by Toni Pitcher via a national online survey of Parkinson's 
   # NZ members, excluding people in Canterbury:
@@ -431,10 +431,10 @@ YYYYtoDate <- function(YYYY){
 
 if (USE_CACHED_PPMI_DATA) {
   
-  # read from the previously merged and stored data set:
+  # read from the previously merged and minimised data set:
   dat_ppmi = read_csv('data/anonymised/ppmi_data.csv')
   
-} else # merge various data sources
+} else # if there is access to the full PPMI tables, merge them:
 {
   # READ IN THE PARTICIPANT GROUP ASSIGNMENT:
   groups = read.csv('data/source/PPMI/Patient_Status.csv', 
@@ -484,7 +484,7 @@ if (USE_CACHED_PPMI_DATA) {
     duration_sx = round(age - symptom_onset_age, digits = 1),
     sex = case_when(GENDER == 0 ~ 0,
                     GENDER == 1 ~ 0,
-                    GENDER == 2 ~1), # recode all women to female, regardless of child-bearing potential
+                    GENDER == 2 ~ 1), # recode all women to female, regardless of child-bearing potential
     sex = factor(sex, labels = c('Women', 'Men'))) %>% 
     filter(!is.na(KIDSNUM)) # two people have missing KIDSNUM values
   
@@ -511,7 +511,8 @@ if (USE_CACHED_PPMI_DATA) {
 dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>% 
   arrange(study, sex, n_children, diagnosis_age) %>% 
   mutate(study = factor(study, levels = c('PPMI', 'NZBRI'))) %>% 
-  mutate(substudy = factor(substudy, levels = c('PPMI', 'Canterbury', 'National'))) %>%
+  mutate(substudy = factor(substudy, 
+                           levels = c('PPMI', 'Canterbury', 'National'))) %>%
   group_by(study) %>% 
   mutate(birth_year_std = birth_year - min(birth_year, na.rm = TRUE)) %>% 
   ungroup()
@@ -528,11 +529,13 @@ if (RECALCULATE_MODELS) {
   # Define priors
   # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
   #
-  # Use weakly-informative priors for intercept and standard deviation of residuals
+  # Use weakly-informative priors for intercept and standard deviation of 
+  # residuals.
   # For intercept: Student-t distribution, df = 3, mean = 0, scale = 10
-  # For standard deviation of residuals: Student-t distribution, df = 3, mean = 0, 
-  # scale = 10 with rejecting sampling on the prior to ensure greater or equal to 0
-  # Matches the defaults for brms
+  # For standard deviation of residuals: Student-t distribution, df = 3, 
+  # mean = 0, scale = 10 with rejection sampling on the prior to ensure greater 
+  # or equal to 0.
+  # Matches the defaults for brms.
   #
   # Probability density function definition for the Student-t distribution:
   # https://mc-stan.org/docs/2_22/functions-reference/student-t-distribution.html
@@ -542,20 +545,20 @@ if (RECALCULATE_MODELS) {
   # \sigma^{*} &amp;\sim \mathsf{HalfCauchy}{(0, 5)} \\
   # \sigma &amp;= \sigma^{*} \sqrt{\frac{\nu - 2}{\nu}} \\
   #
-  # For Bayes Factors need proper priors on non-common parameter between model
-  # By default brms has improper priors on regression coefficients
+  # For Bayes Factors need proper priors on non-common parameter between model.
+  # By default brms has improper priors on regression coefficients.
   # 
-  # We use informative prior for effect of number of children, based upon three
-  # previous studies cited in the paper: Haaxma et al. (2007), Yadav et al. 
-  # (2012), and Frentzel (2017).
+  # We use informative priors for the effect of number of children, based upon 
+  # three previous studies cited in the paper: Haaxma et al. (2007), Yadav et 
+  # al. (2012), and Frentzel et al. (2017).
   #
   # Older age == earlier birth year, thus reversal of sign for effect:
   # 
-  # For age: Normal distribution with mean = 2.5, sd = 2
+  # For  age: Normal distribution with mean =  2.5, sd = 2
   # For year: Normal distribution with mean = -2.5, sd = 2
   ########
   
-  nchildren_onset_age_effect_prior_mean = 2.5
+  nchildren_onset_age_effect_prior_mean  =  2.5
   nchildren_birth_year_effect_prior_mean = -2.5  
   
   intercept_only_prior <- function(int_centre){
@@ -1063,7 +1066,7 @@ MacAskill, Anderson, and Pitcher are employed by the University of Otago. Myall 
 # References
 
 ```{r review-figures}
-# produced to answer a reviewer query: not included in the manuscript itself.
+# Produced to answer reviewer queries: not included in the manuscript itself.
 # The question was whether diagnosis age was rising over time, which is not a 
 # question that can be answered by either of these datasets (diagnosis occurred 
 # only over a very narrow window for PPMI, and for NZBRI, the diagnosis window 
@@ -1085,9 +1088,16 @@ review_01_figure = dat %>%
                                         fill = 'lightgrey'))
 
 ggsave(plot = review_01_figure, 
-       filename = 'figures/Review_01_figure.png', width = 17, height = 9.7, 
+       filename = 'figures/age_of_onset_over_time.png', 
+       width = 17, height = 9.7, 
        units = 'cm', dpi = 600, type = 'cairo')
 
+# In the second round of review, the question arose as to whether cohort effects
+# could be corrected for by including year of birth in models, along with number
+# of children. This figure shows that in PPMI, age of onset and year of birth
+# are almost perfectly anti-correlated, and hence can't be included in the same 
+# model. Due to the survivorship bias shown in the figure above, we claim that
+# it shouldn't be included when modeling NZBRI data either:
 review_02_figure = dat %>% 
   ggplot(aes(x = birth_year, y = diagnosis_age)) + 
   facet_grid(. ~ study) +
@@ -1096,7 +1106,6 @@ review_02_figure = dat %>%
   ylab('Age at diagnosis\n') + 
   xlab('\nYear of birth') +
   theme_bw(base_family = 'Gill Sans') +
-  #xlim(c(1979, 2020)) +
   theme(axis.ticks = element_line(colour = 'lightgrey'),
         panel.border = element_rect(colour = 'lightgrey', size = 0.5),
         panel.grid.minor = element_blank(),
@@ -1104,7 +1113,8 @@ review_02_figure = dat %>%
                                         fill = 'lightgrey'))
 
 ggsave(plot = review_02_figure, 
-       filename = 'figures/Review_02_figure.png', width = 17, height = 9.7, 
+       filename = 'figures/feasibility_of_correcting_for_cohort.png', 
+       width = 17, height = 9.7, 
        units = 'cm', dpi = 600, type = 'cairo')
 ```
 
