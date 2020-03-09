@@ -528,9 +528,19 @@ if (RECALCULATE_MODELS) {
   # Define priors
   # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
   #
-  # Use weakly-informative priors for intercept and standard deviation
-  # Student-t distribution, df = 3, mean = 0, sd = 10
+  # Use weakly-informative priors for intercept and standard deviation of residuals
+  # For intercept: Student-t distribution, df = 3, mean = 0, scale = 10
+  # For standard deviation of residuals: Student-t distribution, df = 3, mean = 0, 
+  # scale = 10 with rejecting sampling on the prior to ensure greater or equal to 0
   # Matches the defaults for brms
+  #
+  # Probability density function definition for the Student-t distribution:
+  # https://mc-stan.org/docs/2_22/functions-reference/student-t-distribution.html
+  #
+  # To transform scale of Student-t to standard deviation:
+  # https://jrnold.github.io/bugs-examples-in-stan/resistant.html
+  # \sigma^{*} &amp;\sim \mathsf{HalfCauchy}{(0, 5)} \\
+  # \sigma &amp;= \sigma^{*} \sqrt{\frac{\nu - 2}{\nu}} \\
   #
   # For Bayes Factors need proper priors on non-common parameter between model
   # By default brms has improper priors on regression coefficients
@@ -734,11 +744,14 @@ NZBRI_Women_n_coefs_birth = fixef(brm_NZBRI_birthyear_Women_n)
 # To get the prior distributions. The default is a weakly informative prior, 
 # i.e., a Student's t with 3 degrees of freedom, scale of 10, and mean of 
 # variable mean.
-prior_summary(brm_PPMI_birthyear_Men_n) 
+prior_summary(brm_PPMI_birthyear_Men_n)
 
 # If the sample_prior is set to TRUE at the time of model fitting, we can gather
 # prior samples and visualise the prior distributions by:
 bayesplot::mcmc_dens(prior_samples(brm_PPMI_birthyear_Men_n))
+
+# To get full details of the model code and how priors are implemented:
+stancode(brm_PPMI_birthyear_Men_n)
 
 ```
 
@@ -815,7 +828,7 @@ A challenge in such observational studies is applying valid control comparisons.
 *NZBRI:* At the New Zealand Brain Research Institute, we combined two previously-conducted risk-factor surveys, in which 604 people with idiopathic Parkinson's provided valid responses on age at diagnosis and number of biological children (Table \@ref(tab:demog-table)). Cases ranged from recently-diagnosed to those with long-standing disease. Responses were mostly collected online, with some submitting via paper or telephone. Respondents with dementia had assistance to complete the questions. One survey (`r nrow(dat_canty)` valid cases) recruited from our ongoing longitudinal study of a convenience sample of prevalent cases in the local Canterbury region. The other (`r nrow(dat_national)` valid cases) was nation-wide, recruiting from the membership (excluding Canterbury) of the Parkinson's New Zealand charitable trust. Age at diagnosis was self-reported in the national survey and confirmed from clinical records in the Canterbury survey. Canterbury respondents had diagnosis confirmed by a neurologist. The remainder required a diagnosis in order to receive care from Parkinson's New Zealand, which might have been made by a neurologist, other specialist, or general practitioner.
 
 ## Analyses
-Onset age was defined as when Parkinson's was diagnosed, because symptom onset age was collected only in the local survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_. [@burkner2017_BrmsPackageBayesian] Weakly-informative Student _t_ priors were used for the intercept (df = 3, mean = data mean, SD = 10) and standard deviation (df = 3, mean = 0, SD = 10). Based upon the three previous studies, [@frentzel2017_IncreaseReproductiveLife; @haaxma2007_GenderDifferencesParkinson; @yadav2012_CaseControlStudy] we used a proper informative normal prior (mean = ±2.5, SD = 2) for the effect of the number of children (being positive for the dependent variable of age, and negative for year of birth). We ran four chains of 20 000 iterations each.
+Onset age was defined as when Parkinson's was diagnosed, because symptom onset age was collected only in the local survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_. [@burkner2017_BrmsPackageBayesian] Weakly-informative Student _t_ priors were used for the intercept (df = 3, mean = data mean, scale = 10) and standard deviation of the residuals (df = 3, mean = 0, scale = 10) with rejection sampling used to ensure the standard deviation was non-negative. The scale values were chosen so the prior distributions had moderate probability mass fully covering the range of plausible parameter values. Based upon the three previous studies, [@frentzel2017_IncreaseReproductiveLife; @haaxma2007_GenderDifferencesParkinson; @yadav2012_CaseControlStudy] we used a proper informative normal prior (mean = ±2.5, SD = 2) for the effect of the number of children (being positive for the dependent variable of age, and negative for year of birth). We ran four chains of 20 000 iterations each.
 
 When testing hypotheses of associations between the number of children and age of onset (or year of birth), in each case we compared a model containing the number of children as a predictor to an intercept-only model (i.e. a model of no association). Bayes factors give the ratio of the likelihood of the data given a model including the number of children, to the likelihood of the data given an intercept-only ("flat-line") model.
 
