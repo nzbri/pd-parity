@@ -42,7 +42,7 @@ abstract: |
   **Conclusion:** Despite being replicable in certain circumstances, associations between childbirth and later Parkinson's onset are an artefact of generational cohort differences.
 
 keywords          : "Parkinson disease, sex differences, pregnancy, epidemiology,  cohort effects, sex hormones"
-wordcount         : "Abstract: 150, main body: 1769"
+wordcount         : "Abstract: 150, main body: 1835"
 
 floatsintext      : no
 figurelist        : no
@@ -165,10 +165,10 @@ ndigits <- function(number, digits = 1){
 ```{r import-nz-canterbury-data}
 if (USE_CACHED_CANTERBURY_DATA) {
   
-  # read from the previously merged and stored data set:
+  # read from the previously merged and processed data set:
   dat_canty = read_csv('data/anonymised/nz_canterbury_data.csv')
   
-} else # merge various data sources
+} else # see what was required to merge & clean the various data sources:
 {
   # data collected by Toni Pitcher via an online survey of NZBRI participants 
   # in 2014-15 and with new cases from 2018 appended:
@@ -260,10 +260,10 @@ if (USE_CACHED_CANTERBURY_DATA) {
 
 if (USE_CACHED_NATIONAL_DATA) {
   
-  # read from the previously merged and stored data set:
+  # read from the previously merged and processed data set:
   dat_national = read_csv('data/anonymised/nz_national_data.csv')
   
-} else # tidy and process the raw survey responses
+} else # this was done to tidy and process the raw survey responses:
 {
   # data collected by Toni Pitcher via a national online survey of Parkinson's 
   # NZ members, excluding people in Canterbury:
@@ -431,10 +431,10 @@ YYYYtoDate <- function(YYYY){
 
 if (USE_CACHED_PPMI_DATA) {
   
-  # read from the previously merged and stored data set:
+  # read from the previously merged and minimised data set:
   dat_ppmi = read_csv('data/anonymised/ppmi_data.csv')
   
-} else # merge various data sources
+} else # if there is access to the full PPMI tables, merge them:
 {
   # READ IN THE PARTICIPANT GROUP ASSIGNMENT:
   groups = read.csv('data/source/PPMI/Patient_Status.csv', 
@@ -484,7 +484,7 @@ if (USE_CACHED_PPMI_DATA) {
     duration_sx = round(age - symptom_onset_age, digits = 1),
     sex = case_when(GENDER == 0 ~ 0,
                     GENDER == 1 ~ 0,
-                    GENDER == 2 ~1), # recode all women to female, regardless of child-bearing potential
+                    GENDER == 2 ~ 1), # recode all women to female, regardless of child-bearing potential
     sex = factor(sex, labels = c('Women', 'Men'))) %>% 
     filter(!is.na(KIDSNUM)) # two people have missing KIDSNUM values
   
@@ -511,7 +511,8 @@ if (USE_CACHED_PPMI_DATA) {
 dat = bind_rows(dat_canty, dat_national, dat_ppmi) %>% 
   arrange(study, sex, n_children, diagnosis_age) %>% 
   mutate(study = factor(study, levels = c('PPMI', 'NZBRI'))) %>% 
-  mutate(substudy = factor(substudy, levels = c('PPMI', 'Canterbury', 'National'))) %>%
+  mutate(substudy = factor(substudy, 
+                           levels = c('PPMI', 'Canterbury', 'National'))) %>%
   group_by(study) %>% 
   mutate(birth_year_std = birth_year - min(birth_year, na.rm = TRUE)) %>% 
   ungroup()
@@ -528,24 +529,36 @@ if (RECALCULATE_MODELS) {
   # Define priors
   # See https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations
   #
-  # Use weakly-informative priors for intercept and standard deviation
-  # Student-t distribution, df = 3, mean = 0, sd = 10
-  # Matches the defaults for brms
+  # Use weakly-informative priors for intercept and standard deviation of 
+  # residuals.
+  # For intercept: Student-t distribution, df = 3, mean = 0, scale = 10
+  # For standard deviation of residuals: Student-t distribution, df = 3, 
+  # mean = 0, scale = 10 with rejection sampling on the prior to ensure greater 
+  # or equal to 0.
+  # Matches the defaults for brms.
   #
-  # For Bayes Factors need proper priors on non-common parameter between model
-  # By default brms has improper priors on regression coefficients
+  # Probability density function definition for the Student-t distribution:
+  # https://mc-stan.org/docs/2_22/functions-reference/student-t-distribution.html
+  #
+  # To transform scale of Student-t to standard deviation:
+  # https://jrnold.github.io/bugs-examples-in-stan/resistant.html
+  # \sigma^{*} &amp;\sim \mathsf{HalfCauchy}{(0, 5)} \\
+  # \sigma &amp;= \sigma^{*} \sqrt{\frac{\nu - 2}{\nu}} \\
+  #
+  # For Bayes Factors need proper priors on non-common parameter between model.
+  # By default brms has improper priors on regression coefficients.
   # 
-  # We use informative prior for effect of number of children, based upon three
-  # previous studies cited in the paper: Haaxma et al. (2007), Yadav et al. 
-  # (2012), and Frentzel (2017).
+  # We use informative priors for the effect of number of children, based upon 
+  # three previous studies cited in the paper: Haaxma et al. (2007), Yadav et 
+  # al. (2012), and Frentzel et al. (2017).
   #
   # Older age == earlier birth year, thus reversal of sign for effect:
   # 
-  # For age: Normal distribution with mean = 2.5, sd = 2
+  # For  age: Normal distribution with mean =  2.5, sd = 2
   # For year: Normal distribution with mean = -2.5, sd = 2
   ########
   
-  nchildren_onset_age_effect_prior_mean = 2.5
+  nchildren_onset_age_effect_prior_mean  =  2.5
   nchildren_birth_year_effect_prior_mean = -2.5  
   
   intercept_only_prior <- function(int_centre){
@@ -734,11 +747,14 @@ NZBRI_Women_n_coefs_birth = fixef(brm_NZBRI_birthyear_Women_n)
 # To get the prior distributions. The default is a weakly informative prior, 
 # i.e., a Student's t with 3 degrees of freedom, scale of 10, and mean of 
 # variable mean.
-prior_summary(brm_PPMI_birthyear_Men_n) 
+prior_summary(brm_PPMI_birthyear_Men_n)
 
 # If the sample_prior is set to TRUE at the time of model fitting, we can gather
 # prior samples and visualise the prior distributions by:
 bayesplot::mcmc_dens(prior_samples(brm_PPMI_birthyear_Men_n))
+
+# To get full details of the model code and how priors are implemented:
+stancode(brm_PPMI_birthyear_Men_n)
 
 ```
 
@@ -810,12 +826,12 @@ A challenge in such observational studies is applying valid control comparisons.
 
 ## Data sets
 
-*PPMI:* The openly-available Parkinson’s Progressive Marker Initiative is a dataset of incident cases, with a mean 7 months between diagnosis and recruitment (see Table \@ref(tab:demog-table) and Acknowledgments). Valid data on number of children was available from 421 of PPMI's 423 idiopathic Parkinson's cases.
+*PPMI:* The openly-available Parkinson’s Progressive Marker Initiative [@marek2018_ParkinsonProgressionMarkersa] is a dataset of incident cases, with a mean 7 months between diagnosis and recruitment (see Table \@ref(tab:demog-table) and Acknowledgments). Valid data on number of children was available from 421 of PPMI's 423 idiopathic Parkinson's cases.
 
 *NZBRI:* At the New Zealand Brain Research Institute, we combined two previously-conducted risk-factor surveys, in which 604 people with idiopathic Parkinson's provided valid responses on age at diagnosis and number of biological children (Table \@ref(tab:demog-table)). Cases ranged from recently-diagnosed to those with long-standing disease. Responses were mostly collected online, with some submitting via paper or telephone. Respondents with dementia had assistance to complete the questions. One survey (`r nrow(dat_canty)` valid cases) recruited from our ongoing longitudinal study of a convenience sample of prevalent cases in the local Canterbury region. The other (`r nrow(dat_national)` valid cases) was nation-wide, recruiting from the membership (excluding Canterbury) of the Parkinson's New Zealand charitable trust. Age at diagnosis was self-reported in the national survey and confirmed from clinical records in the Canterbury survey. Canterbury respondents had diagnosis confirmed by a neurologist. The remainder required a diagnosis in order to receive care from Parkinson's New Zealand, which might have been made by a neurologist, other specialist, or general practitioner.
 
 ## Analyses
-Onset age was defined as when Parkinson's was diagnosed, because symptom onset age was collected only in the local survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_. [@burkner2017_BrmsPackageBayesian] Weakly-informative Student _t_ priors were used for the intercept (df = 3, mean = data mean, SD = 10) and standard deviation (df = 3, mean = 0, SD = 10). Based upon the three previous studies, [@frentzel2017_IncreaseReproductiveLife; @haaxma2007_GenderDifferencesParkinson; @yadav2012_CaseControlStudy] we used a proper informative normal prior (mean = ±2.5, SD = 2) for the effect of the number of children (being positive for the dependent variable of age, and negative for year of birth). We ran four chains of 20 000 iterations each.
+Onset age was defined as when Parkinson's was diagnosed, because symptom onset age was not collected in the NZBRI nation-wide survey. Data were fit with simple Bayesian linear models, using the R[@rdevelopmentcoreteam2019_LanguageEnvironmentStatistical] package _brms_. [@burkner2017_BrmsPackageBayesian] Weakly-informative Student _t_ priors were used for the intercept (df = 3, mean = data mean, scale = 10) and standard deviation of the residuals (df = 3, mean = 0, scale = 10) with rejection sampling used to ensure the standard deviation was non-negative. The scale values were chosen so the prior distributions had moderate probability mass fully covering the range of plausible parameter values. Based upon the three previous studies, [@frentzel2017_IncreaseReproductiveLife; @haaxma2007_GenderDifferencesParkinson; @yadav2012_CaseControlStudy] we used a proper informative normal prior (mean = ±2.5, SD = 2) for the effect of the number of children (being positive for the dependent variable of age, and negative for year of birth). We ran four chains of 20 000 iterations each.
 
 When testing hypotheses of associations between the number of children and age of onset (or year of birth), in each case we compared a model containing the number of children as a predictor to an intercept-only model (i.e. a model of no association). Bayes factors give the ratio of the likelihood of the data given a model including the number of children, to the likelihood of the data given an intercept-only ("flat-line") model.
 
@@ -1025,9 +1041,9 @@ ggsave(plot = figure_1,
 
 # Discussion
 
-The PPMI men showed a clear association between having more children and later disease onset (although the dataset is limited by having few patients with more than four children). This is sufficient to discount the proposed hormonal cause for this relationship, previously reported in women only. [@haaxma2007_GenderDifferencesParkinson;@frentzel2017_IncreaseReproductiveLife;@yadav2012_CaseControlStudy] We tested a non-biological explanation, common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In incident studies like PPMI, there is a near-perfect correlation between patient age and age of diagnosis. Accordingly, the diagnosis-age effect in the PPMI study (top row, Figure \@ref(fig:main-figure)B) very closely resembles the simple background generational cohort effect (top row, Figure \@ref(fig:main-figure)A). The previously-reported associations are therefore likely an example of the classic epidemiological trap of mistaking an age effect for a generational cohort one. [@blanchard1977_DistinguishingAgingPeriod]
+The PPMI men showed a clear association between having more children and later disease onset (although the dataset is limited by having few patients with more than four children). This is sufficient to discount the proposed hormonal cause for this relationship, previously reported in women only. [@haaxma2007_GenderDifferencesParkinson;@frentzel2017_IncreaseReproductiveLife;@yadav2012_CaseControlStudy] We tested a non-biological explanation, common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In incident studies like PPMI, there is a near-perfect correlation between patient age and age of diagnosis. Accordingly, the diagnosis-age effect in the PPMI study (top row, Figure \@ref(fig:main-figure)B) very closely resembles the simple background generational cohort effect (top row, Figure \@ref(fig:main-figure)A). The previously-reported associations are therefore likely an example of the classic epidemiological trap of mistaking an age effect for a generational cohort one. [@blanchard1977_DistinguishingAgingPeriod]. As patient age and age-of-onset are almost perfectly correlated in this study, it is not possible to use age to statistically "correct for" generational membership.
 
-Associations between number of children and diagnosis age were absent in both sexes in the NZBRI study (bottom row, Figure \@ref(fig:main-figure)B), although the background generational effect (bottom row, Figure \@ref(fig:main-figure)A) was similar to that in the PPMI study. This is consistent, because in a prevalence sample, people with long-standing disease de-couple the relationship between patient age and the age of diagnosis. Consider one person diagnosed at age 50 and another at 75. In an incident study, with recruitment soon after diagnosis, these people would necessarily come from different generations. In a prevalent sample, however, this relationship breaks down. They could even be the same age, if one was recently diagnosed at age 75, while the other, also currently aged 75, had a 25 year history of disease. Artefactual associations between number of children and age of onset are therefore most likely in samples with a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (as shown in the roughly one-year-per-child associations in the PPMI sample). Two previous studies defined disease duration from symptom onset: with durations of 2.5 years [@haaxma2007_GenderDifferencesParkinson] and 5.8 years,[@frentzel2017_IncreaseReproductiveLife] this indeed places them closer to the PPMI incident study (`r ndigits(PPMI_mean_women_sx_duration, 1)` years mean female symptom duration) than to the NZBRI prevalent sample (where the mean duration since diagnosis was `r ndigits(NZBRI_mean_women_dx_duration, 1)` years, implying a much longer time relative to symptom onset). The third study had a median disease duration of 5 years although it was not specified if that was defined from symptom onset or diagnosis. [@yadav2012_CaseControlStudy] The magnitude of the effect we found (approximately one year later onset per child) was smaller than in the previous studies. This is consistent with the complex web of social, cultural, financial, and health factors that influence family size, with generational cohort being only one contributor (evident in the large variability in Figure \@ref(fig:main-figure)A).
+Associations between number of children and diagnosis age were absent in both sexes in the NZBRI study (bottom row, Figure \@ref(fig:main-figure)B), although the background generational effect (bottom row, Figure \@ref(fig:main-figure)A) was similar to that in the PPMI study. This is consistent, because in a prevalence sample, people with long-standing disease somewhat de-couple the relationship between patient age and their age of diagnosis. Consider one person diagnosed at age 50 and another at 75. In an incident study, with recruitment soon after diagnosis, these people would necessarily come from different generations. In a prevalent sample, however, this relationship can break down. They could even be the same age, if one was recently diagnosed at age 75, while the other, also currently aged 75, had a 25 year history of disease. Artefactual associations between number of children and age of onset are therefore most likely in samples with a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (as shown in the roughly one-year-per-child associations in the PPMI sample). Two of the previous studies defined disease duration from symptom onset: with mean durations of 2.5 years [@haaxma2007_GenderDifferencesParkinson] and 5.8 years,[@frentzel2017_IncreaseReproductiveLife] this indeed places them closer to the PPMI incident study (`r ndigits(PPMI_mean_women_sx_duration, 1)` years mean female symptom duration) than to the NZBRI prevalent sample (where the mean duration since diagnosis was `r ndigits(NZBRI_mean_women_dx_duration, 1)` years, implying a much longer time relative to symptom onset). The third study had a median disease duration of 5 years although it was not specified if that was defined from symptom onset or diagnosis. [@yadav2012_CaseControlStudy] The magnitude of the effect we found (approximately one year later onset per child) was smaller than in the previous studies. This is consistent with the complex web of social, cultural, financial, and health factors that influence family size, with generational cohort being only one contributor (evident in the large variability in Figure \@ref(fig:main-figure)A).
 
 If there was a causal association between childbirth and delayed disease onset, women's mean onset age should be measurably later than men's (unless some other competing female risk factors could somehow balance the putative protective childbirth effect). We found male and female onset age was similar, in both the PPMI and NZBRI samples. In the previous studies,  women's onset age (57.1) was either similar to men's (57.3),[@frentzel2017_IncreaseReproductiveLife] or non-significantly later (53.4 vs 51.3, p = 0.06)[@haaxma2007_GenderDifferencesParkinson] (the remaining study [@yadav2012_CaseControlStudy] had no male comparison). That is, not only is the association between childbirth and later disease onset artefactual, there is likely no female age-of-onset advantage in need of explanation. 
 
@@ -1049,30 +1065,56 @@ MacAskill, Anderson, and Pitcher are employed by the University of Otago. Myall 
 
 # References
 
-```{r review-figure}
-# produced to answer a reviewer query: not included in the manuscript itself.
+```{r review-figures}
+# Produced to answer reviewer queries: not included in the manuscript itself.
 # The question was whether diagnosis age was rising over time, which is not a 
 # question that can be answered by either of these datasets (diagnosis occurred 
 # only over a very narrow window for PPMI, and for NZBRI, the diagnosis window 
 # spans decades, but a massive survivorship bias is in effect, meaning that the 
-# apparent increase in diagnosis age over time is (not a real e)at least mostly)
-# artefactual: 
-review_figure = dat %>% 
+# apparent increase in diagnosis age over time is (at least mostly) artefactual: 
+review_01_figure = dat %>% 
   ggplot(aes(x = birth_year + diagnosis_age, y = diagnosis_age)) + 
   facet_grid(. ~ study) +
-  geom_point(alpha = 0.5, shape = 16) +
+  geom_point(alpha = 0.5, shape = 16, size = 0.5) +
   geom_smooth(method = 'lm', colour = 'red') +
   ylab('Age at diagnosis\n') + 
-  xlab('\nTime (year of birth + age at diagnosis)') +
+  xlab('\nYear of diagnosis') +
   theme_bw(base_family = 'Gill Sans') +
   xlim(c(1979, 2020)) +
   theme(axis.ticks = element_line(colour = 'lightgrey'),
         panel.border = element_rect(colour = 'lightgrey', size = 0.5),
         panel.grid.minor = element_blank(),
-        strip.background = element_rect(colour = 'lightgrey', fill = 'lightgrey'))
+        strip.background = element_rect(colour = 'lightgrey', 
+                                        fill = 'lightgrey'))
 
-ggsave(plot = review_figure, 
-       filename = 'figures/Reviewer figure.png', width = 17, height = 9.7, 
+ggsave(plot = review_01_figure, 
+       filename = 'figures/age_of_onset_over_time.png', 
+       width = 17, height = 9.7, 
+       units = 'cm', dpi = 600, type = 'cairo')
+
+# In the second round of review, the question arose as to whether cohort effects
+# could be corrected for by including year of birth in models, along with number
+# of children. This figure shows that in PPMI, age of onset and year of birth
+# are almost perfectly anti-correlated, and hence can't be included in the same 
+# model. Due to the survivorship bias shown in the figure above, we claim that
+# it shouldn't be included when modeling NZBRI data either:
+review_02_figure = dat %>% 
+  ggplot(aes(x = birth_year, y = diagnosis_age)) + 
+  facet_grid(. ~ study) +
+  geom_point(alpha = 0.5, shape = 16, size = 0.5) +
+  geom_smooth(method = 'lm', colour = 'red') +
+  ylab('Age at diagnosis\n') + 
+  xlab('\nYear of birth') +
+  theme_bw(base_family = 'Gill Sans') +
+  theme(axis.ticks = element_line(colour = 'lightgrey'),
+        panel.border = element_rect(colour = 'lightgrey', size = 0.5),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(colour = 'lightgrey', 
+                                        fill = 'lightgrey'))
+
+ggsave(plot = review_02_figure, 
+       filename = 'figures/feasibility_of_correcting_for_cohort.png', 
+       width = 17, height = 9.7, 
        units = 'cm', dpi = 600, type = 'cairo')
 ```
 
