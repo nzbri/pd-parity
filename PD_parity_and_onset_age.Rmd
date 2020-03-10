@@ -83,16 +83,19 @@ rstan::rstan_options(auto_write = TRUE)
 options(mc.cores = parallel::detectCores())
 
 ###########################################################################
-# fitting the models takes time, so set this variable to FALSE to allow 
-# reading previously-fit models that have been saved to disk. THESE MODELS
-# ARE NOT NECESSARILY PLATFORM-AGNOSTIC, SO THEY MAY NEED TO BE RECALCULATED 
-# THE FIRST TIME THIS SCRIPT IS RUN ON A NEW COMPUTER:
-RECALCULATE_MODELS = FALSE
+# fitting the models takes time. The model objects are therefore cached to 
+# disk for subsequent re-use, to save time when re-running the script.
+# So once this script has been run once, set this flag to FALSE. The 
+# previously-fit models will then be read from disk, rather than be re-
+# calculated afresh. THESE MODELS ARE NOT NECESSARILY PLATFORM-AGNOSTIC, 
+# SO THEY MAY NEED TO BE RECALCULATED THE FIRST TIME THIS SCRIPT IS RUN ON 
+# A NEW COMPUTER:
+RECALCULATE_MODELS = TRUE
 ###########################################################################
 
 ###########################################################################
 # The Canterbury data requires matching survey responses to NZBRI-held info
-# on diagnosis age. This will eventually break, as it relies on an old 
+# on diagnosis age. This will eventually break, as it relies on old 
 # internal processes to access data. So after the data sources were matched, 
 # we saved them to a cached .csv file on disk and use that thereafter.
 # This setting should be TRUE for people using the publicly-available
@@ -105,21 +108,24 @@ USE_CACHED_CANTERBURY_DATA = TRUE
 # instead import the processed file. So after the data sources were matched, 
 # we saved them to a cached .csv file on disk and use that thereafter.
 # This setting should be TRUE for people using the publicly-available
-# distribution, as only this tidied and anonymised data is included:
+# distribution, as only the tidied and anonymised data is included:
 USE_CACHED_NATIONAL_DATA = TRUE
 ###########################################################################
 
 ###########################################################################
-# We don't circulate the full PMMI datasets, which should be obtained 
-# from the PPMI site directly. The following files are required if you want
-# to follow how they were processed and joined:
+# We can't distribute the full PMMI datasets. If you wish to work with 
+# those, you should obtain permission to access them from the PPMI site 
+# directly. The following PPMI files are required if you want to follow 
+# along with how we processed and joined them:
+# 
 # Patient_Status.csv
 # Screening___Demographics.csv
 # PD_Features.csv
 # Family_History__PD_.csv
 # 
-# Otherwise, we include here the minimal resulting joined dataset, containing 
-# just the crucial variables. This allows you to run this analysis without 
+# Otherwise, we include here only a file with the minimal extracted and 
+# anonymised variables resulting from joining the datsets above, removing any 
+# unused variables and records. This allows you to run this analysis without 
 # access to the full PPMI tables:
 USE_CACHED_PPMI_DATA = TRUE
 ###########################################################################
@@ -142,7 +148,8 @@ library(cowplot)    # construct multi-panel figures
 library(lme4)       # required by get_brms_formula
 
 if (!USE_CACHED_CANTERBURY_DATA) {
-  library(chchpd)   # NZBRI package to access study data
+  # in-house-only NZBRI package required to access our study data:
+  library(chchpd)
   chchpd::google_authenticate()
 }
 ```
@@ -153,7 +160,7 @@ if (!USE_CACHED_CANTERBURY_DATA) {
 # For Bayes factors require 10 × usual amount, compared to parameter estimation:
 N_ITERATIONS = 20000
 
-# specify manual colour scheme:
+# specify manual colour scheme (colour blindness-safe orange and blue):
 two_colours = c('#D55E00', '#0072B2')
 
 ndigits <- function(number, digits = 1){
@@ -1041,7 +1048,7 @@ ggsave(plot = figure_1,
 
 # Discussion
 
-The PPMI men showed a clear association between having more children and later disease onset (although the dataset is limited by having few patients with more than four children). This is sufficient to discount the proposed hormonal cause for this relationship, previously reported in women only. [@haaxma2007_GenderDifferencesParkinson;@frentzel2017_IncreaseReproductiveLife;@yadav2012_CaseControlStudy] We tested a non-biological explanation, common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In incident studies like PPMI, there is a near-perfect correlation between patient age and age of diagnosis. Accordingly, the diagnosis-age effect in the PPMI study (top row, Figure \@ref(fig:main-figure)B) very closely resembles the simple background generational cohort effect (top row, Figure \@ref(fig:main-figure)A). The previously-reported associations are therefore likely an example of the classic epidemiological trap of mistaking an age effect for a generational cohort one. [@blanchard1977_DistinguishingAgingPeriod]. As patient age and age-of-onset are almost perfectly correlated in this study, it is not possible to use age to statistically "correct for" generational membership.
+The PPMI men showed a clear association between having more children and later disease onset (although the dataset is limited by having few patients with more than four children). This is sufficient to discount the proposed hormonal cause for this relationship, previously reported in women only. [@haaxma2007_GenderDifferencesParkinson;@frentzel2017_IncreaseReproductiveLife;@yadav2012_CaseControlStudy] We tested a non-biological explanation, common to both men and women, in which older patients are simply more likely than younger ones to have had larger families. In incident studies like PPMI, there is a near-perfect correlation between patient age and age of diagnosis. Accordingly, the diagnosis-age effect in the PPMI study (top row, Figure \@ref(fig:main-figure)B) very closely resembles the simple background generational cohort effect (top row, Figure \@ref(fig:main-figure)A). The previously-reported associations are therefore likely an example of the classic epidemiological trap of mistaking an age effect for a generational cohort one. [@blanchard1977_DistinguishingAgingPeriod] As patient age and age-of-onset are almost perfectly correlated in this study, it is not possible to use age to statistically "correct for" generational membership.
 
 Associations between number of children and diagnosis age were absent in both sexes in the NZBRI study (bottom row, Figure \@ref(fig:main-figure)B), although the background generational effect (bottom row, Figure \@ref(fig:main-figure)A) was similar to that in the PPMI study. This is consistent, because in a prevalence sample, people with long-standing disease somewhat de-couple the relationship between patient age and their age of diagnosis. Consider one person diagnosed at age 50 and another at 75. In an incident study, with recruitment soon after diagnosis, these people would necessarily come from different generations. In a prevalent sample, however, this relationship can break down. They could even be the same age, if one was recently diagnosed at age 75, while the other, also currently aged 75, had a 25 year history of disease. Artefactual associations between number of children and age of onset are therefore most likely in samples with a preponderance of incident cases. In a pure incident sample, the magnitude of the association should closely match the background societal association between age and family size (as shown in the roughly one-year-per-child associations in the PPMI sample). Two of the previous studies defined disease duration from symptom onset: with mean durations of 2.5 years [@haaxma2007_GenderDifferencesParkinson] and 5.8 years,[@frentzel2017_IncreaseReproductiveLife] this indeed places them closer to the PPMI incident study (`r ndigits(PPMI_mean_women_sx_duration, 1)` years mean female symptom duration) than to the NZBRI prevalent sample (where the mean duration since diagnosis was `r ndigits(NZBRI_mean_women_dx_duration, 1)` years, implying a much longer time relative to symptom onset). The third study had a median disease duration of 5 years although it was not specified if that was defined from symptom onset or diagnosis. [@yadav2012_CaseControlStudy] The magnitude of the effect we found (approximately one year later onset per child) was smaller than in the previous studies. This is consistent with the complex web of social, cultural, financial, and health factors that influence family size, with generational cohort being only one contributor (evident in the large variability in Figure \@ref(fig:main-figure)A).
 
